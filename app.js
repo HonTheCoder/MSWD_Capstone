@@ -1,3 +1,5 @@
+let currentUserRole = null; // 'mswd' or 'barangay'
+let currentBarangayName = null; // barangay username if barangay role
 // app.js
 import { 
     db, 
@@ -182,15 +184,6 @@ function showError(msg) { alert(msg); }
 
 window.logout = function () { auth.signOut(); location.reload(); };
 
-// ✅ Global for Navigation Sections
-window.showSection = function (id) {
-    document.querySelectorAll('.section').forEach(el => el.classList.add('hidden'));
-    document.getElementById(id)?.classList.remove('hidden');
-    if (id === "deliveryScheduling") {
-        loadAllDeliveriesForAdmin(); // refresh every time open ng section
-    }
-};
-
 // ✅ Example kung may Change Password ka (Optional)
 window.showChangePassword = function () {
     alert("Change Password feature soon!"); // Placeholder, palitan mo nalang
@@ -199,36 +192,95 @@ window.showChangePassword = function () {
 // ✅ Load Barangay List from Firestore
 async function loadBarangaysFromFirebase() {
     const tableBody = document.getElementById("barangayTableBody");
-    if (!tableBody) return; // Ensure table exists
+    if (!tableBody) return;
 
-    tableBody.innerHTML = ""; // Clear table before loading
+    tableBody.innerHTML = "";
 
     const barangaysRef = collection(db, "users");
     const q = query(barangaysRef, where("role", "==", "barangay"));
 
-    // 🟢 Live updates using onSnapshot
-    onSnapshot(q, (snapshot) => {
-        tableBody.innerHTML = ""; // Clear and refresh table
+    onSnapshot(q, async (snapshot) => {
+        tableBody.innerHTML = "";
         if (snapshot.empty) {
             tableBody.innerHTML = "<tr><td colspan='3'>No data available</td></tr>";
         } else {
-            snapshot.forEach((doc) => {
-                const barangayData = doc.data();
+            for (const docSnap of snapshot.docs) {
+                const barangayData = docSnap.data();
+                const barangayName = barangayData.username.replace('barangay_', '');
+
+                // ✅ Count residents linked to this barangay
+                const residentsRef = collection(db, "residents");
+                const residentsQ = query(residentsRef, where("barangay", "==", barangayName));
+                const residentsSnap = await getDocs(residentsQ);
+                const residentCount = residentsSnap.size;
+
                 const row = `<tr>
-                    <td>${barangayData.username.replace('barangay_', '')}</td>
-                    <td>${barangayData.residents || 0}</td> <!-- Add residents count dynamically later -->
-                    <td><button onclick="viewBarangay('${doc.id}', '${barangayData.username}')">View</button></td>
+                    <td>${barangayName}</td>
+                    <td>${residentCount}</td>
+                    <td><button onclick="viewBarangay('${docSnap.id}', '${barangayName}')">View</button></td>
                 </tr>`;
                 tableBody.innerHTML += row;
-            });
+            }
         }
     });
 }
 
 // ✅ Handle Viewing Barangay Residents
-window.viewBarangay = function (barangayId, barangayName) {
-    alert("Viewing residents of " + barangayName);
-    // Add logic here to show a modal or navigate to another page for barangay residents
+// ✅ View Residents Modal with Search Filter
+window.viewBarangay = async function (barangayId, barangayName) {
+    document.getElementById("viewResidentsModal").classList.remove("hidden");
+    document.getElementById("viewResidentsTitle").innerText = "Residents of " + barangayName;
+
+    const tableBody = document.getElementById("viewResidentsTableBody");
+    const searchInput = document.getElementById("residentSearchInput");
+    tableBody.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
+
+    try {
+        const residentsRef = collection(db, "residents");
+        const q = query(residentsRef, where("barangay", "==", barangayName));
+        const snapshot = await getDocs(q);
+
+        let residents = [];
+        if (!snapshot.empty) {
+            residents = snapshot.docs.map((docSnap) => docSnap.data());
+        }
+
+        function renderResidents(filter = "") {
+            const filtered = residents.filter(r =>
+                r.name.toLowerCase().includes(filter.toLowerCase()) ||
+                (r.householdNumber && r.householdNumber.toString().includes(filter))
+            );
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = "<tr><td colspan='5'>No matching residents found</td></tr>";
+                return;
+            }
+
+            tableBody.innerHTML = "";
+            filtered.forEach((r) => {
+                const row = `<tr>
+                    <td>${r.name}</td>
+                    <td>${r.age}</td>
+                    <td>${r.addressZone}</td>
+                    <td>${r.householdNumber}</td>
+                    <td>${r.familyMembers}</td>
+                </tr>`;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Initial render
+        renderResidents();
+        searchInput.oninput = () => renderResidents(searchInput.value);
+
+    } catch (error) {
+        console.error("Error fetching residents:", error);
+        tableBody.innerHTML = "<tr><td colspan='5'>Error loading residents</td></tr>";
+    }
+};
+
+window.closeViewResidentsModal = function () {
+    document.getElementById("viewResidentsModal").classList.add("hidden");
 };
 
 // Function to schedule a delivery
@@ -526,7 +578,7 @@ async function loadAllDeliveriesForAdmin() {
         const barangayId = user.uid; // Use the user's UID as Barangay ID (if applicable)
     
         try {
-            const deliveries = await getDeliveries(barangayId); // Fetch deliveries for the Barangay
+            const deliveries = await getDeliveries(barangayUsername); // Fetch deliveries for the Barangay
             console.log("Fetched deliveries: ", deliveries); // Add this line to check deliveries
     
             if (deliveries.length === 0) {
@@ -697,7 +749,34 @@ window.deleteResident = async function(docId) {
     }
 };
 
-window.editResident = function(docId) {
-    alert("Edit feature coming soon for ID: " + docId);
-    // (optional) pwede tayo magpop-up ng modal to edit the resident
-};
+// ✅ Navigation Sections
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(sec => sec.classList.add('hidden'));
+    // Show requested section
+    document.getElementById(sectionId)?.classList.remove('hidden');
+
+    // Delivery scheduling (admin only)
+    if (sectionId === "deliveryScheduling") {
+        loadAllDeliveriesForAdmin?.();
+    }
+
+    // Statistics logic
+    if (sectionId === "statistics") {
+        if (loggedInUserData?.role === 'mswd') {
+            console.log("MSWD Statistics Section opened");
+            document.getElementById('mswdStatisticsContainer').classList.remove('hidden');
+            document.getElementById('barangayStatisticsContainer').classList.add('hidden');
+            window.loadBarangayPriorityChart(db, getDocs, collection);
+        } else if (loggedInUserData?.role === 'barangay') {
+            const barangayName = loggedInUserData.username.replace('barangay_', '');
+            console.log("Barangay Statistics Section opened for:", barangayName);
+            document.getElementById('barangayStatisticsContainer').classList.remove('hidden');
+            document.getElementById('mswdStatisticsContainer').classList.add('hidden');
+            window.loadResidentPriorityChart(db, getDocs, collection, query, where, barangayName);
+        }
+    }
+}
+
+// ✅ Expose globally so HTML onclick works
+window.showSection = showSection;

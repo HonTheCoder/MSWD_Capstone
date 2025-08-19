@@ -109,23 +109,23 @@ export async function getPendingRequests() {
 }
 
 // ✅ Add New Delivery
-export async function addDelivery(barangayId, deliveryDate, details) {
+export async function addDelivery(barangay, deliveryDate, details) {
     try {
         // Ensure required fields are present
-        if (!barangayId || !deliveryDate || !details) {
+        if (!barangay || !deliveryDate || !details) {
             throw new Error("Missing required fields: Barangay ID, Delivery Date, or Details.");
         }
 
         // Add delivery for specific Barangay
         await addDoc(collection(db, "deliveries"), {
-            barangayId, 
+            barangay, 
             deliveryDate: new Date(deliveryDate),  // ← should be a Date object
             details, 
             status: "scheduled",
             timestamp: serverTimestamp(),
         });       
 
-        console.log("✅ Delivery scheduled for Barangay:", barangayId);
+        console.log("✅ Delivery scheduled for Barangay:", barangay);
         return true;
     } catch (error) {
         console.error("❌ Error scheduling delivery:", error);
@@ -134,18 +134,18 @@ export async function addDelivery(barangayId, deliveryDate, details) {
 }
 
 // ✅ Get Deliveries for Barangay (on the Barangay's page)
-export async function getDeliveries(barangayId) {
+export async function getDeliveries(barangay) {
     try {
         // Ensure Barangay ID is provided
-        if (!barangayId) {
+        if (!barangay) {
             throw new Error("Barangay ID is required to fetch deliveries.");
         }
 
         // Query Firestore for deliveries assigned to the Barangay
-        const q = query(collection(db, "deliveries"), where("barangayId", "==", barangayId));
+        const q = query(collection(db, "deliveries"), where("barangay", "==", barangay));
         const snapshot = await getDocs(q);
 
-        console.log("✅ Fetched deliveries for Barangay:", barangayId);
+        console.log("✅ Fetched deliveries for Barangay:", barangay);
         
         // Map through docs and return delivery data
         return snapshot.docs.map(doc => ({

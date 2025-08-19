@@ -76,7 +76,7 @@
                 <li class="mswd-only"><a href="#" onclick="showSection('deliveryScheduling')">Delivery Scheduling</a></li>
                 <li class="barangay-only"><a href="#" onclick="showSection('residentManagement')">Manage Residents</a></li>
                 <li class="barangay-only"><a href="#" onclick="showSection('deliveryStatus')">Delivery Status</a></li>
-                <li><a href="#" onclick="showSection('statistics')">Priority Statistics</a></li>
+                <li><a href="javascript:void(0)" onclick="showSection('statistics')">Priority Statistics</a></li>
                 <li><a href="#" onclick="showChangePassword()">Change Password</a></li>
                 <li><a href="#" onclick="logout()">Logout</a></li>
             </ul>
@@ -136,6 +136,9 @@
                                 <th>Address Zone</th>
                                 <th>Household No</th>
                                 <th>Family Members</th>
+                                <th>Monthly Income</th>
+                                <th>Aid History</th>
+                                <th>Evacuee History</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -211,13 +214,23 @@
                 }
             </script>
 
+            
             <div id="statistics" class="section hidden">
-                <h2>Priority Statistics</h2>
-                <div class="card">
-                    <canvas id="statisticsChart"></canvas>
+                <!-- MSWD Statistics -->
+                <div id="mswdStatisticsContainer" class="hidden">
+                    <h2>Barangay Priority Statistics</h2>
+                    <button id="exportBarangayCSVBtn">Export to CSV</button>
+                    <canvas id="barangayPriorityChart" style="max-height:600px;"></canvas>
+                    <div id="topBarangaysList" class="priority-list"></div>
+                </div>
+                <!-- Barangay Statistics -->
+                <div id="barangayStatisticsContainer" class="hidden">
+                    <h2>Resident Priority Statistics</h2>
+                    <button id="exportResidentCSVBtn">Export to CSV</button>
+                    <canvas id="residentPriorityChart" style="max-height:600px;"></canvas>
+                    <div id="topResidentsList" class="priority-list"></div>
                 </div>
             </div>
-
             <div id="deliveryScheduling" class="section hidden">
                 <h2>Delivery Scheduling</h2>
                 <div class="card">
@@ -272,11 +285,42 @@
                     </div>
                 </div>
             </div>
+
+                        <!-- ✅ View Residents Modal -->
+            <div id="viewResidentsModal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" onclick="closeViewResidentsModal()">&times;</span>
+                <h2 id="viewResidentsTitle">Residents</h2>
+
+                <!-- Search box -->
+                <input type="text" id="residentSearchInput" placeholder="Search residents..." style="width:100%;margin-bottom:10px;">
+
+                <!-- Residents table -->
+                <div class="table-container">
+                <table border="1" style="width:100%;">
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Age</th>
+                        <th>Address Zone</th>
+                        <th>Household No</th>
+                        <th>Family Members</th>
+                    </tr>
+                    </thead>
+                    <tbody id="viewResidentsTableBody">
+                    <!-- Rows filled dynamically by app.js -->
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
         </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module" src="./firebase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="chart.js"></script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

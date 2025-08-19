@@ -107,15 +107,21 @@ button.secondary-button:hover {
 
 /* ✅ Dashboard Styles */
 .dashboard-container {
-    display: flex;
-    min-height: 100vh;
+  display: flex; /* ✅ para side-by-side */
+  height: 100vh; /* optional, full height */
 }
 
 .sidebar {
-    width: 250px;
-    background-color: var(--white);
-    padding: 2rem;
-    box-shadow: var(--shadow);
+  width: 220px;   /* sidebar fixed width */
+  background: #fff;
+  border-right: 1px solid #ddd;
+  padding: 20px;
+}
+
+.main-content {
+  flex: 1; /* ✅ takes remaining width */
+  padding: 20px;
+  overflow-y: auto; /* scrollable if needed */
 }
 
 .sidebar h2 {
@@ -142,11 +148,6 @@ button.secondary-button:hover {
 .sidebar ul li a:hover {
     background-color: var(--background-light);
     color: var(--primary-blue);
-}
-
-.main-content {
-    flex: 1;
-    padding: 2rem;
 }
 
 .card {
@@ -267,3 +268,38 @@ button.secondary-button:hover {
     margin-bottom: 1rem;
 }
 
+/* ✅ Fix for Large Resident Tables in Modal */
+#viewResidentsModal .modal-content {
+    max-width: 900px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#viewResidentsModal .table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 60vh;
+    margin-top: 10px;
+}
+
+#viewResidentsModal table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#viewResidentsModal thead th {
+    position: sticky;
+    top: 0;
+    background: #f9f9f9;
+    z-index: 2;
+}
+
+
+/* ---- Priority Statistics layout fixes ---- */
+.section .card, #statistics .card { width: 100%; }
+#mswdStatisticsContainer, #barangayStatisticsContainer { width: 100%; }
+#mswdStatisticsContainer canvas, #barangayStatisticsContainer canvas { max-width: 100%; width: 100%; }
+.priority-list { margin-top: 12px; padding-left: 18px; }
+.priority-list ol { margin: 0; padding-left: 18px; }
