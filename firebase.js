@@ -7,11 +7,13 @@ import {
     query, 
     where, 
     getDocs, 
+    getDoc,   // ✅ Added this
     addDoc, 
     serverTimestamp,
     doc,
     updateDoc,
-    deleteDoc // ✅ For deleting requests
+    deleteDoc, // ✅ For deleting requests
+    Timestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 import { 
@@ -111,20 +113,16 @@ export async function getPendingRequests() {
 // ✅ Add New Delivery
 export async function addDelivery(barangay, deliveryDate, details) {
     try {
-        // Ensure required fields are present
         if (!barangay || !deliveryDate || !details) {
-            throw new Error("Missing required fields: Barangay ID, Delivery Date, or Details.");
+            throw new Error("Missing required fields: Barangay, Delivery Date, or Details.");
         }
-
-        // Add delivery for specific Barangay
         await addDoc(collection(db, "deliveries"), {
-            barangay, 
-            deliveryDate: new Date(deliveryDate),  // ← should be a Date object
-            details, 
-            status: "scheduled",
+            barangay,
+            deliveryDate: Timestamp.fromDate(new Date(deliveryDate)),
+            details,
+            status: "Pending",
             timestamp: serverTimestamp(),
-        });       
-
+        });
         console.log("✅ Delivery scheduled for Barangay:", barangay);
         return true;
     } catch (error) {
@@ -136,18 +134,15 @@ export async function addDelivery(barangay, deliveryDate, details) {
 // ✅ Get Deliveries for Barangay (on the Barangay's page)
 export async function getDeliveries(barangay) {
     try {
-        // Ensure Barangay ID is provided
         if (!barangay) {
             throw new Error("Barangay ID is required to fetch deliveries.");
         }
 
-        // Query Firestore for deliveries assigned to the Barangay
         const q = query(collection(db, "deliveries"), where("barangay", "==", barangay));
         const snapshot = await getDocs(q);
 
         console.log("✅ Fetched deliveries for Barangay:", barangay);
         
-        // Map through docs and return delivery data
         return snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -171,10 +166,10 @@ export async function addResidentToFirestore(residentData) {
             isWorking, 
             monthlyIncome, 
             familyMembers, 
-            evacueeHistory 
+            evacueeHistory,
+            aidHistory,
         } = residentData;
 
-        // Add the resident to the "residents" collection
         await addDoc(collection(db, "residents"), {
             name,
             age,
@@ -185,6 +180,7 @@ export async function addResidentToFirestore(residentData) {
             isWorking,
             monthlyIncome,
             familyMembers,
+            aidHistory,
             evacueeHistory,
             timestamp: serverTimestamp(),
         });
@@ -205,10 +201,11 @@ export {
     query, 
     where, 
     getDocs, 
+    getDoc,   // ✅ Added export
     addDoc, 
     doc, 
     updateDoc, 
-    deleteDoc, // ✅ Important for deletion of requests
+    deleteDoc, 
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     fetchSignInMethodsForEmail,

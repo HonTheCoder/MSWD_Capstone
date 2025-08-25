@@ -1,3 +1,33 @@
+
+function showSuccess(msg) {
+    openMessageModal("Success", msg, "green");
+}
+
+function showError(msg) {
+    openMessageModal("Error", msg, "red");
+}
+
+function openMessageModal(title, msg, color) {
+    const modal = document.getElementById("messageModal");
+    if (!modal) { alert(msg); return; }
+    document.getElementById("messageTitle").innerText = title;
+    document.getElementById("messageTitle").style.color = color;
+    document.getElementById("messageText").innerText = msg;
+    modal.classList.remove("hidden");
+}
+
+function closeMessageModal() {
+    const modal = document.getElementById("messageModal");
+    if (modal) modal.classList.add("hidden");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("messageOkBtn");
+    if (btn) {
+        btn.addEventListener("click", closeMessageModal);
+    }
+});
+
 let currentUserRole = null; // 'mswd' or 'barangay'
 let currentBarangayName = null; // barangay username if barangay role
 // app.js
@@ -10,6 +40,7 @@ import {
     query, 
     where, 
     getDocs, 
+    getDoc,
     addDoc, 
     doc, 
     updateDoc, 
@@ -18,7 +49,8 @@ import {
     createUserWithEmailAndPassword,
     createUserInFirestore,
     fetchSignInMethodsForEmail,
-    addResidentToFirestore
+    addResidentToFirestore,
+    changePassword
 } from './firebase.js';
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -47,7 +79,6 @@ onAuthStateChanged(auth, async (user) => {
 document.addEventListener("DOMContentLoaded", async () => {
     initializeDefaultAdmin();
     loadBarangaysFromFirebase(); // ✅ Load Barangays on page load
-    loadAllDeliveriesForAdmin(); // 🟢 Load deliveries for admin
 });
 
     document.getElementById("loginForm")?.addEventListener("submit", handleLogin);
@@ -112,7 +143,9 @@ async function initializeUser(userData) {
         document.querySelectorAll('.mswd-only').forEach(el => el.style.display = 'block');
         document.querySelectorAll('.barangay-only').forEach(el => el.style.display = 'none');
         loadAccountRequests(); 
-    } else if (userData.role === 'barangay') {
+    
+        showSection('deliveryScheduling');
+} else if (userData.role === 'barangay') {
         document.querySelectorAll('.barangay-only').forEach(el => el.style.display = 'block');
         document.querySelectorAll('.mswd-only').forEach(el => el.style.display = 'none');
 
@@ -120,6 +153,7 @@ async function initializeUser(userData) {
         
         const barangayName = userData.username.replace('barangay_', '');
         loadResidentsForBarangay(barangayName); // 🔥 Automatic load residents pag login
+        showSection('deliveryStatus');
     }
 }
 
@@ -180,14 +214,12 @@ async function handleRequestAccount(event) {
 
 function showRequestAccount() { document.getElementById("requestAccountModal").classList.remove("hidden"); }
 function hideRequestAccount() { document.getElementById("requestAccountModal").classList.add("hidden"); }
-function showError(msg) { alert(msg); }
+    
 
 window.logout = function () { auth.signOut(); location.reload(); };
 
 // ✅ Example kung may Change Password ka (Optional)
-window.showChangePassword = function () {
-    alert("Change Password feature soon!"); // Placeholder, palitan mo nalang
-};
+// removed duplicate placeholder to avoid conflicts
 
 // ✅ Load Barangay List from Firestore
 async function loadBarangaysFromFirebase() {
@@ -217,10 +249,21 @@ async function loadBarangaysFromFirebase() {
                 const row = `<tr>
                     <td>${barangayName}</td>
                     <td>${residentCount}</td>
-                    <td><button onclick="viewBarangay('${docSnap.id}', '${barangayName}')">View</button></td>
+                    <td><button class="view-residents-btn" data-id="${docSnap.id}" data-bname="${barangayName}" onclick="viewBarangay('${docSnap.id}', '${barangayName}')">View</button></td>
                 </tr>`;
                 tableBody.innerHTML += row;
             }
+        }
+    });
+    // Ensure click works even if inline is skipped
+    tableBody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.view-residents-btn');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        const bname = btn.getAttribute('data-bname');
+        console.log('[barangayTable] View clicked for', bname, 'id:', id);
+        if (typeof window.viewBarangay === 'function') {
+            window.viewBarangay(id, bname);
         }
     });
 }
@@ -228,7 +271,24 @@ async function loadBarangaysFromFirebase() {
 // ✅ Handle Viewing Barangay Residents
 // ✅ View Residents Modal with Search Filter
 window.viewBarangay = async function (barangayId, barangayName) {
-    document.getElementById("viewResidentsModal").classList.remove("hidden");
+    console.log('[viewBarangay] Open modal for', barangayName, 'id:', barangayId);
+    const modalEl = document.getElementById("viewResidentsModal");
+    if (!modalEl) {
+        console.error('[viewBarangay] viewResidentsModal not found');
+        return;
+    }
+    // Ensure modal is top-level to avoid stacking contexts
+    if (modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
+        console.log('[viewBarangay] Moved modal to <body>');
+    }
+    modalEl.classList.remove("hidden");
+    modalEl.style.display = "flex";
+    modalEl.style.opacity = "1";
+    modalEl.style.pointerEvents = "auto";
+    modalEl.style.zIndex = "100000";
+    const cs = window.getComputedStyle(modalEl);
+    console.log('[viewBarangay] modal style => display:', cs.display, 'opacity:', cs.opacity, 'z-index:', cs.zIndex);
     document.getElementById("viewResidentsTitle").innerText = "Residents of " + barangayName;
 
     const tableBody = document.getElementById("viewResidentsTableBody");
@@ -246,10 +306,11 @@ window.viewBarangay = async function (barangayId, barangayName) {
         }
 
         function renderResidents(filter = "") {
-            const filtered = residents.filter(r =>
-                r.name.toLowerCase().includes(filter.toLowerCase()) ||
-                (r.householdNumber && r.householdNumber.toString().includes(filter))
-            );
+            const filtered = residents.filter(r => {
+                const name = (r.name || '').toLowerCase();
+                return name.includes(filter.toLowerCase()) ||
+                    (r.householdNumber && r.householdNumber.toString().includes(filter));
+            });
 
             if (filtered.length === 0) {
                 tableBody.innerHTML = "<tr><td colspan='5'>No matching residents found</td></tr>";
@@ -258,13 +319,18 @@ window.viewBarangay = async function (barangayId, barangayName) {
 
             tableBody.innerHTML = "";
             filtered.forEach((r) => {
-                const row = `<tr>
-                    <td>${r.name}</td>
-                    <td>${r.age}</td>
-                    <td>${r.addressZone}</td>
-                    <td>${r.householdNumber}</td>
-                    <td>${r.familyMembers}</td>
-                </tr>`;
+                const row = `
+            <tr>
+                <td>${r.name}</td>
+                <td>${r.age}</td>
+                <td>${r.addressZone}</td>
+                <td>${r.householdNumber}</td>
+                <td>${r.familyMembers}</td>
+                <td>${r.monthlyIncome ?? ''}</td>
+                <td>${r.aidHistory ?? ''}</td>
+                <td>${r.evacueeHistory ?? ''}</td>
+            </tr>
+        `;
                 tableBody.innerHTML += row;
             });
         }
@@ -280,14 +346,16 @@ window.viewBarangay = async function (barangayId, barangayName) {
 };
 
 window.closeViewResidentsModal = function () {
-    document.getElementById("viewResidentsModal").classList.add("hidden");
+    const modalEl = document.getElementById("viewResidentsModal");
+    modalEl.classList.add("hidden");
+    modalEl.style.display = "none";
 };
 
 // Function to schedule a delivery
 async function loadBarangayDropdown() {
     const barangaySelect = document.getElementById("barangaySelect");
     if (!barangaySelect) {
-        console.error("Error: barangaySelect element not found!");
+        console.warn("[loadBarangayDropdown] barangaySelect element not found");
         return;
     }
 
@@ -315,96 +383,51 @@ async function loadBarangayDropdown() {
 // ✅ Function to load deliveries for a barangay
 // Add a new function to fetch deliveries for the logged-in barangay
 // Update loadBarangayDeliveries to include status update buttons
-async function loadBarangayDeliveries(barangayUsername) {
+
+// Live updates for Barangay Deliveries
+
+function loadBarangayDeliveries(barangay) {
     const tableBody = document.getElementById("deliveriesTableBody");
-    if (!tableBody) return;
+    if (!tableBody) {
+        console.warn("[Barangay Deliveries] Table body not found.");
+        return;
+    }
 
-    tableBody.innerHTML = ""; // Clear table before inserting new rows
+    const deliveriesRef = collection(db, "deliveries");
+    const q = query(deliveriesRef, where("barangay", "==", barangay));
 
-    const q = query(collection(db, "deliveries"), where("barangay", "==", barangayUsername));
-    const querySnapshot = await getDocs(q);
-
-    querySnapshot.forEach((docSnapshot) => {
-        const delivery = docSnapshot.data();
-        console.log("Full delivery data:", delivery);  // To inspect the structure
-        console.log("Delivery Keys:", Object.keys(delivery));  // To see all keys in the delivery object
-
-        const row = document.createElement("tr");
-
-        // Correctly get the delivery date from the Firestore document
-        const deliveryDate = delivery.deliveryDate?.toDate?.();
-        console.log("Date from Firestore:", deliveryDate);  // Should log a Date object
-
-        const readableDate = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date"; 
-        const tdDate = document.createElement("td");
-        tdDate.textContent = readableDate;  // Use readableDate for the display
-        row.appendChild(tdDate);
-
-        console.log("Date from Firestore:", delivery.deliveryDate);
-        console.log("Full delivery data:", delivery);
-        console.log("Delivery Keys:", Object.keys(delivery));
-
-
-        // **Delivery Details** (Show the details of the delivery)
-        const tdDetails = document.createElement("td");
-        tdDetails.textContent = delivery.details || "No details";// Default if no details available
-        row.appendChild(tdDetails);
-
-        // **Status** (Keep the status as "Pending")
-        const tdStatus = document.createElement("td");
-        tdStatus.textContent = delivery.status || "Pending"; // Show "Pending" if no status
-        row.appendChild(tdStatus);
-
-        // **Action Button** (If not received, show "Received" button)
-        const tdAction = document.createElement("td");
-        if (delivery.status !== "Received") {
-            const receiveButton = document.createElement("button");
-            receiveButton.textContent = "Received"; // Change text to clarify action
-            receiveButton.classList.add("receive-button"); // Add class for styling or visibility checks
-
-            // Use an inline function to handle the button click and update the status
-            receiveButton.addEventListener("click", async () => {
-                // ✅ Disable button immediately for feedback
-                receiveButton.disabled = true;
-                receiveButton.textContent = "Updating...";
-            
-                const docRef = doc(db, "deliveries", docSnapshot.id);
-            
-                try {
-                    await updateDoc(docRef, { status: "Received" });
-                    console.log("Status successfully updated to Received.");
-                    alert("Marked as received!");
-                    await loadBarangayDeliveries(auth.currentUser.displayName); // ✅ Reload table
-                } catch (error) {
-                    console.error("Real error caught:", error);
-                    showError("Error updating status.");
-                }
-            });
-
-            tdAction.appendChild(receiveButton);
-        } else {
-            tdAction.textContent = "Received"; // If already received, just show "Received"
+    onSnapshot(q, (snapshot) => {
+        tableBody.innerHTML = "";
+        if (snapshot.empty) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align:center;">No deliveries scheduled yet.</td>
+                </tr>`;
+            return;
         }
-        row.appendChild(tdAction);
 
-        // Append the row to the table body
-        tableBody.appendChild(row);
+        snapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            const row = document.createElement("tr");
+
+            const deliveryDate = d.deliveryDate?.toDate?.();
+            const dateStr = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
+
+            row.innerHTML = `
+                <td>${dateStr}</td>
+                <td>${d.details || ""}</td>
+                <td>${d.status || "Pending"}</td>
+                <td>
+                    <button onclick="updateDeliveryStatus('${docSnap.id}', 'Received')">Mark Received</button>
+                </td>
+            `;
+
+            tableBody.appendChild(row);
+        });
     });
 }
 
-// Function to update delivery status
-async function updateDeliveryStatus(deliveryId, newStatus) {
-    const deliveryRef = doc(db, "deliveries", deliveryId);
-    try {
-        await updateDoc(deliveryRef, { status: newStatus });
-        console.log("Status updated successfully!");
-        // Reload deliveries after updating
-        loadBarangayDeliveries(auth.currentUser.uid);
-    } catch (error) {
-        console.error("Error updating status:", error);
-        showError("Failed to update delivery status.");
-    }
-}
+
 
 // Function to handle scheduling deliveries
 function handleScheduleDelivery() {
@@ -451,122 +474,77 @@ function handleScheduleDelivery() {
     }
 }
 
-async function loadAllDeliveriesForAdmin() {
+
+function loadAllDeliveriesForAdmin() {
     const tableBody = document.getElementById("adminDeliveriesTableBody");
-    if (!tableBody) return;
-
-    tableBody.innerHTML = ""; // Clear table
-
-    const deliveriesQuery = query(collection(db, "deliveries"));
-    const snapshot = await getDocs(deliveriesQuery);
-
-    // later for users
-    const usersQuery = query(collection(db, "users"), where("role", "==", "barangay"));
-    const querySnapshot = await getDocs(usersQuery);
-
-    if (snapshot.empty) {
-        tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No deliveries scheduled yet.</td></tr>`;
-        return; // Exit kung walang data
+    if (!tableBody) {
+        console.warn("[Admin Deliveries] Table body not found.");
+        return;
     }
 
-    snapshot.forEach((docSnap) => {
-        const delivery = docSnap.data();
-        const row = document.createElement("tr");
+    const deliveriesRef = collection(db, "deliveries");
 
-        // Barangay
-        const tdBarangay = document.createElement("td");
-        tdBarangay.textContent = delivery.barangay || "Unknown";
-        row.appendChild(tdBarangay);
+    onSnapshot(deliveriesRef, (snapshot) => {
+        console.log("[Admin Deliveries] Snapshot size:", snapshot.size);  // 👈 NEW DEBUG
+        tableBody.innerHTML = "";
 
-        // Date
-        const deliveryDate = delivery.deliveryDate?.toDate?.();
-        const tdDate = document.createElement("td");
-        tdDate.textContent = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
-        row.appendChild(tdDate);
-
-        // Details
-        const tdDetails = document.createElement("td");
-        tdDetails.textContent = delivery.details || "No Details";
-        row.appendChild(tdDetails);
-
-        // Status
-        const tdStatus = document.createElement("td");
-        tdStatus.textContent = delivery.status || "Pending";
-        row.appendChild(tdStatus);
-
-        // Create Action Button
-        const tdAction = document.createElement("td");
-        const deleteBtn = document.createElement("button"); // <-- Declare muna
-
-        deleteBtn.textContent = "Delete";
-        deleteBtn.style.backgroundColor = "#e74c3c"; 
-        deleteBtn.style.color = "white";             
-        deleteBtn.style.border = "none";
-        deleteBtn.style.padding = "5px 10px";
-        deleteBtn.style.borderRadius = "5px";
-        deleteBtn.style.cursor = "pointer";
-
-        // THEN NOW you can apply condition
-        if (delivery.status === "Received") {
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = "Completed";
-            deleteBtn.style.backgroundColor = "gray";
-            deleteBtn.style.cursor = "not-allowed";
+        if (snapshot.empty) {
+            console.log("[Admin Deliveries] No documents found");  // 👈 NEW DEBUG
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" style="text-align:center;">No deliveries scheduled yet.</td>
+                </tr>`;
+            return;
         }
 
-        // Attach Delete Function
-        deleteBtn.addEventListener("click", async () => {
-            const confirmDelete = confirm("Are you sure you want to delete this delivery?");
-            if (!confirmDelete) return;
+        snapshot.forEach((docSnap) => {
+            const delivery = docSnap.data();
+            console.log("[Admin Deliveries] Delivery:", docSnap.id, delivery); // 👈 NEW DEBUG
 
-            try {
-                await deleteDoc(doc(db, "deliveries", docSnap.id)); 
-                alert("Delivery deleted successfully.");
-                loadAllDeliveriesForAdmin(); 
-            } catch (error) {
-                console.error("❌ Failed to delete:", error);
-                alert("Failed to delete delivery. Try again.");
-            }
+            const row = document.createElement("tr");
+
+            // Barangay
+            const tdBarangay = document.createElement("td");
+            tdBarangay.textContent = delivery.barangay
+                ? delivery.barangay.replace("barangay_", "")
+                : "Unknown";
+            row.appendChild(tdBarangay);
+
+            // Delivery Date
+            const tdDate = document.createElement("td");
+            const deliveryDate = delivery.deliveryDate?.toDate?.();
+            tdDate.textContent = deliveryDate
+                ? deliveryDate.toLocaleDateString()
+                : "No Date";
+            row.appendChild(tdDate);
+
+            // Details
+            const tdDetails = document.createElement("td");
+            tdDetails.textContent = delivery.details || "No Details";
+            row.appendChild(tdDetails);
+
+            // Status
+            const tdStatus = document.createElement("td");
+            tdStatus.textContent = delivery.status || "Pending";
+            row.appendChild(tdStatus);
+
+            // Action (Delete button)
+            const tdAction = document.createElement("td");
+            const deleteBtn = document.createElement("button");
+            deleteBtn.textContent = "Delete";
+            deleteBtn.onclick = async () => {
+                await deleteDoc(doc(db, "deliveries", docSnap.id));
+                console.log("[Admin Deliveries] Deleted:", docSnap.id); // 👈 NEW DEBUG
+            };
+            tdAction.appendChild(deleteBtn);
+            row.appendChild(tdAction);
+
+            tableBody.appendChild(row);
         });
-
-        // Finally append to td
-        tdAction.appendChild(deleteBtn);
-        row.appendChild(tdAction);
-
-        // Append the row to the table body
-        tableBody.appendChild(row);
-    });
-
-    // Schedule Delivery form event listener
-    const scheduleDeliveryForm = document.getElementById("scheduleDeliveryForm");
-    if (scheduleDeliveryForm) {
-        scheduleDeliveryForm.addEventListener("submit", function(event) {
-            event.preventDefault();  // Prevent traditional form submission
-            handleScheduleDelivery();  // Call delivery scheduling handler
-        });
-    }
-
-    const barangaySelect = document.getElementById("barangaySelect");  // Assuming you have this select element
-    barangaySelect.innerHTML = ""; // Clear it first!
-
-    // Add a default option (optional)
-    const defaultOption = document.createElement("option");
-    defaultOption.value = "";
-    defaultOption.textContent = "Select Barangay";
-    barangaySelect.appendChild(defaultOption);
-
-    // Fetch barangays from Firestore
-    const barangayQuery = query(collection(db, "users"), where("role", "==", "barangay"));
-    const barangaySnapshot = await getDocs(barangayQuery);
-
-    barangaySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const option = document.createElement("option");
-        option.value = data.username; // Assuming 'username' is unique
-        option.textContent = data.username.replace("barangay_", ""); // Remove prefix
-        barangaySelect.appendChild(option);
     });
 }
+
+
 
     async function showDeliveries() {
         const user = auth.currentUser; // Get logged-in user
@@ -629,35 +607,22 @@ function closeAddResidentModal() {
     document.getElementById("addResidentModal").style.display = "none";
 }
 
-// Toggle monthly income field based on "Student" or "Working" checkbox
-function toggleIncomeField() {
-    const isStudent = document.getElementById("student").checked;
-    const isWorking = document.getElementById("working").checked;
-    const monthlyIncomeField = document.getElementById("monthlyIncome");
-    
-    if (isStudent) {
-        monthlyIncomeField.disabled = true;
-    } else if (isWorking) {
-        monthlyIncomeField.disabled = false;
-    }
-}
-
 window.loadResidentsForBarangay = async function(barangayName) {
     const tableBody = document.getElementById("residentsTableBody");
     if (!tableBody) return;
 
-    tableBody.innerHTML = ""; // clear muna before loading
+    tableBody.innerHTML = ""; // clear before loading
 
     const q = query(collection(db, "residents"), where("barangay", "==", barangayName));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-        tableBody.innerHTML = "<tr><td colspan='6'>No residents found.</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='9'>No residents found.</td></tr>";
         return;
     }
 
-    snapshot.forEach(doc => {
-        const resident = doc.data();
+    snapshot.forEach(docSnap => {
+        const resident = docSnap.data();
         const row = `
             <tr>
                 <td>${resident.name}</td>
@@ -665,13 +630,16 @@ window.loadResidentsForBarangay = async function(barangayName) {
                 <td>${resident.addressZone}</td>
                 <td>${resident.householdNumber}</td>
                 <td>${resident.familyMembers}</td>
+                <td>${resident.monthlyIncome ?? ''}</td>
+                <td>${resident.aidHistory ?? ''}</td>
+                <td>${resident.evacueeHistory ?? ''}</td>
                 <td>
-                    <button onclick="editResident('${doc.id}')">Update</button>
-                    <button onclick="deleteResident('${doc.id}')">Delete</button>
+                    <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
+<button class="delete-btn" data-id="${docSnap.id}">Delete</button>
                 </td>
             </tr>
         `;
-        tableBody.innerHTML += row; // 🔥 Important part para mapakita sa table
+        tableBody.innerHTML += row;
     });
 };
 
@@ -720,6 +688,7 @@ document.getElementById("addResidentForm").addEventListener("submit", async func
         isWorking: workingCheckbox.checked,
         monthlyIncome: workingCheckbox.checked ? monthlyIncomeInput.value : null,
         familyMembers: familyMembersInput.value,
+        aidHistory: document.getElementById("aidHistory").value,
         evacueeHistory: evacueeHistoryInput.value,
     };
 
@@ -736,47 +705,246 @@ document.getElementById("addResidentForm").addEventListener("submit", async func
     }
 });
 
-window.deleteResident = async function(docId) {
-    if (confirm("Are you sure you want to delete this resident?")) {
-        try {
-            await deleteDoc(doc(db, "residents", docId));
-            alert("Resident deleted successfully!");
-            loadResidentsForBarangay(auth.currentUser.displayName.replace("barangay_", "")); // Reload
-        } catch (error) {
-            console.error("Error deleting resident:", error);
-            alert("Failed to delete resident.");
-        }
+// Open the Edit Resident Modal
+
+
+// Handle Edit Form Submission
+document.getElementById("editResidentForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const docId = document.getElementById("editResidentId").value;
+
+    try {
+        await updateDoc(doc(db, "residents", docId), {
+            name: document.getElementById("editName").value,
+            age: Number(document.getElementById("editAge").value),
+            addressZone: document.getElementById("editAddressZone").value,
+            householdNumber: String(document.getElementById("editHouseholdNumber").value),
+            familyMembers: Number(document.getElementById("editFamilyMembers").value),
+            monthlyIncome: document.getElementById("editMonthlyIncome").value === "" 
+                ? null 
+                : Number(document.getElementById("editMonthlyIncome").value),
+            aidHistory: document.getElementById("editAidHistory").value,
+            evacueeHistory: Number(document.getElementById("editEvacueeHistory").value),
+            isStudent: document.getElementById("editStudent").checked,
+            isWorking: document.getElementById("editWorking").checked,
+        });
+
+        alert("✅ Resident updated successfully!");
+  location.reload();
+
+    } catch (err) {
+        console.error("❌ Error updating resident:", err);
+        alert("Failed to update resident.");
     }
-};
+});
+
+
+
 
 // ✅ Navigation Sections
-function showSection(sectionId) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(sec => sec.classList.add('hidden'));
-    // Show requested section
-    document.getElementById(sectionId)?.classList.remove('hidden');
 
-    // Delivery scheduling (admin only)
-    if (sectionId === "deliveryScheduling") {
-        loadAllDeliveriesForAdmin?.();
+
+
+function showSection(sectionId) {
+    console.log('[showSection] switching to', sectionId);
+    // Always hide residents modal when switching sections
+    const residentsModal = document.getElementById('viewResidentsModal');
+    if (residentsModal) {
+        residentsModal.classList.add('hidden');
+        residentsModal.style.display = 'none';
+        if (sectionId === "deliveryScheduling") {
+        console.log("[showSection] calling loadAllDeliveriesForAdmin()");
+        loadAllDeliveriesForAdmin();
+    }
+}
+    // Hide any other modals to avoid overlays
+    document.querySelectorAll('.modal').forEach(m => { m.classList.add('hidden'); m.style.display = 'none'; });
+
+    // Ensure dashboard container and main content are visible
+    const dash = document.getElementById('dashboardContainer');
+    if (dash) { dash.classList.remove('hidden'); dash.style.display = 'flex'; }
+    const main = document.querySelector('.main-content');
+    if (main) { main.style.display = 'block'; main.style.width = '100%'; }
+
+    // Hide all sections, then show target only
+    document.querySelectorAll('.section').forEach(sec => { sec.classList.add('hidden'); sec.style.display = 'none'; });
+    const target = document.getElementById(sectionId);
+    if (!target) {
+        console.warn('[showSection] target not found:', sectionId);
+        return;
+    }
+    target.classList.remove('hidden');
+    target.style.display = 'block';
+    console.log('[showSection] target visible? hidden=', target.classList.contains('hidden'), 'display=', getComputedStyle(target).display, 'innerHTML length=', (target.innerHTML||'').length);
+
+    // MSWD Delivery Scheduling
+    if (sectionId === "deliveryScheduling" && loggedInUserData?.role === "mswd") {
+        // Unhide any descendants that may still be hidden
+        target.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
+        // Enforce visibility for key containers
+        target.style.visibility = 'visible';
+        target.style.opacity = '1';
+        target.querySelectorAll('.card, .table-container, table').forEach(el => {
+            el.style.display = 'block';
+            el.style.visibility = 'visible';
+        });
+        if (typeof loadBarangayDropdown === "function") loadBarangayDropdown();
+        if (typeof loadAllDeliveriesForAdmin === "function") loadAllDeliveriesForAdmin();
+        // Bring section into view
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_) {}
     }
 
-    // Statistics logic
+    // Barangay Delivery Status
+    if (sectionId === "deliveryStatus" && loggedInUserData?.role === "barangay") {
+        if (typeof loadBarangayDeliveries === "function") loadBarangayDeliveries(loggedInUserData.username);
+    }
+
+    // Statistics
     if (sectionId === "statistics") {
-        if (loggedInUserData?.role === 'mswd') {
-            console.log("MSWD Statistics Section opened");
-            document.getElementById('mswdStatisticsContainer').classList.remove('hidden');
-            document.getElementById('barangayStatisticsContainer').classList.add('hidden');
-            window.loadBarangayPriorityChart(db, getDocs, collection);
-        } else if (loggedInUserData?.role === 'barangay') {
-            const barangayName = loggedInUserData.username.replace('barangay_', '');
-            console.log("Barangay Statistics Section opened for:", barangayName);
-            document.getElementById('barangayStatisticsContainer').classList.remove('hidden');
-            document.getElementById('mswdStatisticsContainer').classList.add('hidden');
-            window.loadResidentPriorityChart(db, getDocs, collection, query, where, barangayName);
+        if (loggedInUserData?.role === "mswd") {
+            document.getElementById("mswdStatisticsContainer").classList.remove("hidden");
+            document.getElementById("barangayStatisticsContainer").classList.add("hidden");
+            if (typeof window.loadBarangayPriorityChart === "function") {
+                window.loadBarangayPriorityChart(db, getDocs, collection);
+            }
+        } else if (loggedInUserData?.role === "barangay") {
+            document.getElementById("mswdStatisticsContainer").classList.add("hidden");
+            document.getElementById("barangayStatisticsContainer").classList.remove("hidden");
+            const barangayName = loggedInUserData.username.replace("barangay_", "");
+            if (typeof window.loadResidentPriorityChart === "function") {
+                window.loadResidentPriorityChart(db, getDocs, collection, query, where, barangayName);
+            }
         }
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_) {}
+    }
+}
+window.showSection = showSection;
+
+
+
+
+
+// ==== Change Password ====
+window.showChangePassword = function() {
+    const modal = document.getElementById('changePasswordModal');
+    if (!modal) return;
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
+    modal.style.zIndex = '100000';
+    const cs = getComputedStyle(modal);
+    console.log('[showChangePassword] modal display', cs.display, 'opacity', cs.opacity);
+};
+
+(function setupChangePassword(){
+    const form = document.getElementById('changePasswordForm');
+    if (!form) return;
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const currentPassword = document.getElementById('currentPassword').value;
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+        if (newPassword !== confirmNewPassword) {
+            showError('New passwords do not match.');
+            return;
+        }
+        if (newPassword.length < 6) {
+                showError('Password must be at least 6 characters long.');
+                return;
+            }
+            try {
+                await changePassword(currentPassword, newPassword);
+            showSuccess('Password updated.');
+            document.getElementById('changePasswordModal').classList.add('hidden');
+            form.reset();
+        } catch (err) {
+            showError(err.message || 'Failed to update password.');
+        }
+    });
+})();
+
+
+
+
+// ✅ Unified Toggle Income Field (works for Add + Edit)
+function toggleIncomeField(prefix = "") {
+  const student = document.getElementById(prefix + "Student");
+  const working = document.getElementById(prefix + "Working");
+  const income = document.getElementById(prefix + "MonthlyIncome");
+  if (!student || !working || !income) return;
+  if (working.checked && !student.checked) {
+    income.disabled = false;
+  } else {
+    income.disabled = true;
+    income.value = "";
+  }
+}
+
+// Attach listeners for Add form
+document.getElementById("student")?.addEventListener("change", () => toggleIncomeField(""));
+document.getElementById("working")?.addEventListener("change", () => toggleIncomeField(""));
+
+// Attach listeners for Edit form
+document.getElementById("editStudent")?.addEventListener("change", () => toggleIncomeField("edit"));
+document.getElementById("editWorking")?.addEventListener("change", () => toggleIncomeField("edit"));
+
+// ✅ Event Delegation for Edit + Delete buttons in residents table
+document.addEventListener("click", async (e) => {
+  if (e.target.classList.contains("edit-btn")) {
+    const id = e.target.getAttribute("data-id");
+    const ref = doc(db, "residents", id);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      alert("Resident not found.");
+      return;
+    }
+    const r = snap.data();
+    // Fill edit form
+    document.getElementById("editResidentId").value = id;
+    document.getElementById("editName").value = r.name || "";
+    document.getElementById("editAge").value = r.age || "";
+    document.getElementById("editAddressZone").value = r.addressZone || "";
+    document.getElementById("editHouseholdNumber").value = r.householdNumber || "";
+    document.getElementById("editFamilyMembers").value = r.familyMembers || "";
+    document.getElementById("editMonthlyIncome").value = r.monthlyIncome ?? "";
+    document.getElementById("editAidHistory").value = r.aidHistory || "";
+    document.getElementById("editEvacueeHistory").value = r.evacueeHistory || "";
+    document.getElementById("editStudent").checked = r.isStudent || false;
+    document.getElementById("editWorking").checked = r.isWorking || false;
+    toggleIncomeField("edit");
+    document.getElementById("editResidentModal").classList.remove("hidden");
+  }
+
+  if (e.target.classList.contains("delete-btn")) {
+    const id = e.target.getAttribute("data-id");
+    if (confirm("Are you sure you want to delete this resident?")) {
+      await deleteDoc(doc(db, "residents", id));
+      alert("Resident deleted successfully!");
+      const barangayName = loggedInUserData.username.replace("barangay_", "");
+      loadResidentsForBarangay(barangayName);
+    }
+  }
+});
+
+
+
+
+function viewBarangayStats(barangayName) {
+    // Switch to Priority Statistics section
+    showSection("priorityStatistics");
+
+    // Load stats for the clicked barangay
+    if (typeof loadPriorityStatistics === "function") {
+        loadPriorityStatistics(barangayName);
     }
 }
 
-// ✅ Expose globally so HTML onclick works
-window.showSection = showSection;
+
+// ===============================
+// Residents Modal (Independent)
+// ===============================
+// removed alternate modal loader/openers to avoid duplication

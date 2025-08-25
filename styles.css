@@ -163,6 +163,19 @@ button.secondary-button:hover {
     color: var(--primary-blue);
 }
 
+/* Make sections take space even if toggled from hidden previously */
+.section {
+    width: 100%;
+}
+/* Ensure visible section is actually displayed */
+.section:not(.hidden) {
+    display: block !important;
+}
+#deliveryScheduling .table-container {
+    display: block;
+    width: 100%;
+}
+
 .list {
     max-height: 400px;
     overflow-y: auto;
@@ -207,7 +220,7 @@ button.secondary-button:hover {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 9999;
     transition: all 0.3s ease-in-out; /* Smooth effect */
 }
 
@@ -303,3 +316,56 @@ button.secondary-button:hover {
 #mswdStatisticsContainer canvas, #barangayStatisticsContainer canvas { max-width: 100%; width: 100%; }
 .priority-list { margin-top: 12px; padding-left: 18px; }
 .priority-list ol { margin: 0; padding-left: 18px; }
+
+
+/* Responsive tables */
+.table-container { overflow-x: auto; }
+.table-container table { min-width: 700px; }
+
+/* ✅ Message Modal Styling */
+#messageModal .modal-content {
+    max-width: 400px;
+    text-align: center;
+}
+#messageModal h2 {
+    margin-bottom: 10px;
+}
+#messageModal button {
+    margin-top: 15px;
+    width: auto;
+    padding: 8px 16px;
+    background-color: var(--primary-blue);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#messageModal button:hover {
+    background-color: #1557b0;
+    /* adjust if you want */
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-right: 10px;
+}
+
+
+/* === Fix: Delivery Scheduling Table Styling === */
+#adminDeliveriesTable {
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+#adminDeliveriesTable th,
+#adminDeliveriesTable td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+    color: #333 !important; /* ensure text is visible */
+    background: #fff; /* row background */
+}
+
+#adminDeliveriesTable th {
+    background-color: #f2f2f2; /* header background */
+    font-weight: bold;
+}
+
