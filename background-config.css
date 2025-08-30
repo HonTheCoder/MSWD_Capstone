@@ -1,0 +1,63 @@
+/* ========================================
+   BACKGROUND CONFIGURATION FILE
+   ========================================
+   
+   This file contains background image settings for your website.
+   To change the background image across all pages, simply update the
+   src attribute in the img tags in your HTML file.
+   
+   You can also adjust opacity and blur effects in the CSS.
+   ======================================== */
+
+/* ===== BACKGROUND EFFECTS ===== */
+/* These values can be adjusted in landingpage.css */
+
+/* Default background image opacity */
+.section-bg-image {
+  opacity: 0.08;        /* 0.0 = invisible, 1.0 = fully visible */
+  filter: blur(0px);    /* 0px = no blur, 5px = heavy blur */
+}
+
+/* Hero section background */
+.hero-section .section-bg-image {
+  opacity: 0.08;
+}
+
+/* Services section background */
+.services-section .section-bg-image {
+  opacity: 0.10;
+  filter: blur(2px);
+}
+
+/* About section background */
+.about-section .section-bg-image {
+  opacity: 0.08;
+}
+
+/* ===== FOOTER LOGOS ===== */
+/* To change footer logos, update the src attributes in landingpage.html */
+
+/* Current footer logo setup:
+   <div class="footer-logos">
+     <img src="pictures/logo1.png" alt="MSWD Logo" class="footer-logo">
+     <img src="pictures/logo2.jpg" alt="Municipality Logo" class="footer-logo">
+   </div>
+*/
+
+/* ===== QUICK BACKGROUND SWITCHES ===== */
+/* To change backgrounds, update the src attribute in your HTML */
+
+/* === OPTION 1: Office Building === */
+/* <img src="pictures/building1.jpg" alt="Background image" class="section-bg-image" /> */
+
+/* === OPTION 2: MSWD Logo === */
+/* <img src="pictures/logo1.png" alt="Background image" class="section-bg-image" /> */
+
+/* === OPTION 3: Municipality Logo === */
+/* <img src="pictures/logo2.jpg" alt="Background image" class="section-bg-image" /> */
+
+/* === OPTION 4: Professional Stock Photo === */
+/* <img src="https://images.unsplash.com/photo-1532629345422-7515f3d16bb6?q=80&w=1600&auto=format&fit=crop" alt="Background image" class="section-bg-image" /> */
+
+/* === OPTION 5: No Background === */
+/* Remove the img tag completely */

@@ -1,397 +1,509 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <title>Relief Allocation App</title>
-    <link rel="stylesheet" href="styles.css">
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" sizes="16x16" href="image/favicon-16x16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="image/favicon-32x32.png">
-    <link rel="icon" type="image/x-icon" href="image/favicon.ico">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description"
+    content="Official MSWD (Municipal Social Welfare and Development) Portal – services, programs, and support for the community." />
+  <title>MSWD Portal</title>
+  <link rel="stylesheet" href="background-config.css" />
+  <link rel="stylesheet" href="landingpage.css" />
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="16x16" href="image/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="image/favicon-32x32.png">
+  <link rel="icon" type="image/x-icon" href="image/favicon.ico">
 
-    <!-- For Apple devices -->
-    <link rel="apple-touch-icon" href="image/apple-touch-icon.png">
+  <!-- For Apple devices -->
+  <link rel="apple-touch-icon" href="image/apple-touch-icon.png">
 
-    <!-- For Android/Chrome -->
-    <link rel="icon" type="image/png" sizes="192x192" href="image/android-chrome-192x192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="image/android-chrome-512x512.png">
+  <!-- For Android/Chrome -->
+  <link rel="icon" type="image/png" sizes="192x192" href="image/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="image/android-chrome-512x512.png">
 </head>
+
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
 
-    <!-- ✅ Success and Error Messages -->
-    <div class="center-message">
-        <div id="successMessage" class="hidden text-green-500 font-bold p-2"></div>
-        <div id="errorMessage" class="hidden text-red-500 font-bold p-2"></div>
+  <header class="site-header" role="banner">
+    <div class="container nav-wrapper">
+      <div class="brand-logos" aria-label="MSWD and Municipality logos">
+        <img src="pictures/logo1.png" alt="MSWD Logo Left" class="logo" />
+        <img src="pictures/logo2.jpg" alt="Municipality Logo Right" class="logo" />
+      </div>
+
+      <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" />
+      <label for="nav-toggle" class="hamburger" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </label>
+
+      <nav class="site-nav" role="navigation" aria-label="Primary">
+        <ul>
+          <li><a href="#home" aria-current="page">Home</a></li>
+          <li><a href="#about">About DSWD/MSWD</a></li>
+          <li><a href="#contact">Contact Us</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-cta">
+        <a class="btn btn-cta" href="main.html" aria-label="Login to MSWD Portal">Login</a>
+      </div>
     </div>
+  </header>
 
-    <!-- Login Form -->
-    <div class="login-container" id="loginContainer">
-        <div class="login-box">
-            <h1>ReliefPoint</h1>
-            <form id="loginForm">
-                <div class="input-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" autocomplete="username" required>
-                </div>
-                <div class="input-group password-group">
-                    <label for="password">Password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="password" name="password" autocomplete="current-password" required>
-                        <span class="material-icons" id="togglePassword">visibility_off</span>
-                    </div>
-                </div>
-                <button type="submit">Login</button>
-                <button type="button" id="requestAccountBtn" class="secondary-button">Request Account</button>
-            </form>          
+  <main id="main">
+    <section id="home" class="hero-section section-full scroll-snap-section global-background"
+      aria-labelledby="hero-title">
+      <img src="pictures/building1.jpg" alt="Background image" class="section-bg-image" />
+      <div class="container hero-content two-col">
+        <div class="hero-text">
+          <h1 id="hero-title">Welcome to the Official MSWD Portal</h1>
+          <p class="hero-subtitle">
+            Municipal Social Welfare and Development – Serving our community with compassion, integrity, and dedication
+            to improve the quality of life for all citizens.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/login">Login to Portal</a>
+            <a class="btn btn-success" href="#services">Our Services</a>
+          </div>
         </div>
-    </div>
+        <figure class="hero-figure" aria-label="MSWD building">
+          <img src="pictures/building1.jpg" alt="Government office building" />
+        </figure>
+      </div>
+    </section>
 
-    <!-- ✅ Request Account Modal -->
-    <div id="requestAccountModal" class="modal hidden">
-        <div class="modal-content">
-            <h2>Request Account</h2>
-            <form id="requestAccountForm">
-                <div class="input-group">
-                    <label for="requestUsername">Barangay Name</label>
-                    <input type="text" id="requestUsername" name="requestUsername" required>
-                </div>
-                <div class="input-group">
-                    <label for="requestEmail">Email</label>
-                    <input type="email" id="requestEmail" name="requestEmail" required>
-                </div>
-                <div class="input-group">
-                    <label for="requestContact">Contact</label>
-                    <input type="text" id="requestContact" name="requestContact" required>
-                </div>
-                <div class="input-group">
-                    <label for="requestMessage">Message</label>
-                    <textarea id="requestMessage" name="requestMessage" required></textarea>
-                </div>
-                <div class="button-group">
-                    <button type="submit">Submit Request</button>
-                    <button id="cancelRequestBtn" type="button" class="secondary-button">Cancel</button>
-                </div>
-            </form>            
+    <section id="services" class="info-section section-full scroll-snap-section global-background"
+      aria-labelledby="services-title">
+      <img src="pictures/building1.jpg" alt="Background image" class="section-bg-image" />
+      <div class="container">
+        <div class="services-intro">
+          <h2 id="services-title">Our Services</h2>
+          <p>MSWD provides comprehensive social welfare services to support and uplift our community members</p>
         </div>
-    </div>
 
-    <!-- Dashboard -->
-    <div class="dashboard-container hidden" id="dashboardContainer">
-        <nav class="sidebar">
-            <h2 id="userRole">Welcome</h2>
-            <ul>
-                <li class="mswd-only"><a href="#" onclick="showSection('barangayManagement')">Manage Barangays</a></li>
-                <li class="mswd-only"><a href="#" onclick="showSection('accountRequests')">Account Requests</a></li>
-                <li class="mswd-only"><a href="#" onclick="showSection('deliveryScheduling')">Delivery Scheduling</a></li>
-                <li class="barangay-only"><a href="#" onclick="showSection('residentManagement')">Manage Residents</a></li>
-                <li class="barangay-only"><a href="#" onclick="showSection('deliveryStatus')">Delivery Status</a></li>
-                <li><a href="javascript:void(0)" onclick="showSection('statistics')">Priority Statistics</a></li>
-                <li><a href="#" onclick="showChangePassword()">Change Password</a></li>
-                <li><a href="#" onclick="logout()">Logout</a></li>
-            </ul>
-        </nav>
-
-        <main class="main-content">
-            <div id="accountRequests" class="section hidden">
-                <h2>Account Requests</h2>
-                <div class="card">
-                    <h3>Pending Requests</h3>
-                    <div class="table-container">
-                        <table id="requestsTable">
-                            <thead>
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Role</th>
-                                    <th>Date Requested</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="requestsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+        <div class="services-grid">
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4Zm0 2c-3.33 0-10 1.67-10 5v1h20v-1c0-3.33-6.67-5-10-5Z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Social Services</h3>
             </div>
+            <p>Comprehensive social welfare programs for vulnerable families and individuals in our community.</p>
+          </article>
 
-            <div id="barangayManagement" class="section hidden">
-                <h2>Registered Barangays</h2>
-                <div class="card">
-                    <div class="table-container">
-                        <table id="barangayTable">
-                            <thead>
-                                <tr>
-                                    <th>Barangay</th><th>Total Residents</th><th>Action</th></tr>
-                            </thead>
-                            <tbody id="barangayTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01 1l-4.7 6.28c-.37.5-.58 1.11-.58 1.73V20c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-2h-2v2z" fill="white"/>
+                  <path d="M12.5 11.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5S11 9.17 11 10s.67 1.5 1.5 1.5zM5.5 6c1.11 0 2-.89 2-2s-.89-2-2-2-2 .89-2 2 .89 2 2 2zm2 16v-7H9V9c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v6.5h1.5V22h4z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Family Support</h3>
             </div>
+            <p>Family counseling, parenting programs, and support services to strengthen family bonds.</p>
+          </article>
 
-            <div id="residentManagement" class="section hidden">
-                <h2>Resident Management</h2>
-                <button onclick="document.getElementById('addResidentModal').classList.remove('hidden')" class="action-button">Add New Resident</button>
-
-                <div class="card">
-                    <div class="table-container">
-                        <table id="residentsTable" style="margin-top: 20px; width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Age</th>
-                                    <th>Address Zone</th>
-                                    <th>Household No</th>
-                                    <th>Family Members</th>
-                                    <th>Monthly Income</th>
-                                    <th>Aid History</th>
-                                    <th>Evacuee History</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="residentsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Senior Citizens Care</h3>
             </div>
+            <p>Dedicated programs and services for the welfare and care of our elderly community members.</p>
+          </article>
 
-            <!-- Modal for Adding Resident -->
-            <div id="addResidentModal" class="modal hidden">
-                <div class="modal-content">
-                    <span class="close" onclick="document.getElementById('addResidentModal').classList.add('hidden')">&times;</span>
-                    <h2>Add New Resident</h2>
-                    <form id="addResidentForm">
-                        <label for="name">Name:</label>
-                        <input type="text" id="name" required>
-
-                        <label for="age">Age:</label>
-                        <input type="number" id="age" required>
-
-                        <label for="addressZone">Address Zone:</label>
-                        <input type="text" id="addressZone" required>
-
-                        <label for="householdNumber">Household Number:</label>
-                        <input type="text" id="householdNumber" required>
-
-                        <label for="student">Student:</label>
-                        <input type="checkbox" id="student">
-
-                        <label for="working">Working:</label>
-                        <input type="checkbox" id="working">
-
-                        <label for="monthlyIncome">Monthly Income:</label>
-                        <input type="number" id="monthlyIncome" disabled>
-
-                        <label for="familyMembers">Family Members:</label>
-                        <input type="number" id="familyMembers" required>
-
-                        <label for="aidHistory">Relief Distribution History (Number of times received goods):</label>
-                        <input type="text" id="aidHistory" required>
-
-                        <label for="evacueeHistory">Evacuee History (Times Evacuated this year):</label>
-                        <input type="number" id="evacueeHistory" required>
-
-                        <button type="submit">Submit</button>
-                    </form>
-                </div>
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Community Development</h3>
             </div>
+            <p>Empowering communities through sustainable development programs and livelihood projects.</p>
+          </article>
 
-            <!-- Modal for Editing Resident -->
-            <div id="editResidentModal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close" onclick="document.getElementById('editResidentModal').classList.add('hidden')">&times;</span>
-                <h2>Edit Resident</h2>
-                <form id="editResidentForm">
-                    <input type="hidden" id="editResidentId">
-
-                    <label for="editName">Name:</label>
-                    <input type="text" id="editName" required>
-
-                    <label for="editAge">Age:</label>
-                    <input type="number" id="editAge" required>
-
-                    <label for="editAddressZone">Address Zone:</label>
-                    <input type="text" id="editAddressZone" required>
-
-                    <label for="editHouseholdNumber">Household Number:</label>
-                    <input type="text" id="editHouseholdNumber" required>
-
-                    <label for="editStudent">Student:</label>
-                    <input type="checkbox" id="editStudent">
-
-                    <label for="editWorking">Working:</label>
-                    <input type="checkbox" id="editWorking">
-
-                    <label for="editMonthlyIncome">Monthly Income:</label>
-                    <input type="number" id="editMonthlyIncome">
-
-                    <label for="editFamilyMembers">Family Members:</label>
-                    <input type="number" id="editFamilyMembers" required>
-
-                    <label for="editAidHistory">Relief Distribution History (times received):</label>
-                    <input type="text" id="editAidHistory" required>
-
-                    <label for="editEvacueeHistory">Evacuee History (times evacuated this year):</label>
-                    <input type="number" id="editEvacueeHistory" required>
-
-                    <button type="submit">Update</button>
-                </form>
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Child Protection</h3>
             </div>
+            <p>Safeguarding children's rights and providing protective services for at-risk minors.</p>
+          </article>
+
+          <article class="service-card">
+            <div class="service-card-header">
+              <div class="icon-circle icon-service" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="white"/>
+                </svg>
+              </div>
+              <h3>Emergency Assistance</h3>
             </div>
-
-
-            <div id="statistics" class="section hidden">
-                <!-- MSWD Statistics -->
-                <div id="mswdStatisticsContainer" class="hidden">
-                    <h2>Barangay Priority Statistics</h2>
-                    <button id="exportBarangayCSVBtn">Export to CSV</button>
-                    <div class="chart-container" style="display:flex; align-items:center; justify-content:center; margin-bottom:40px;">
-                    <div style="width: 600px; height: 600px;">
-                        <canvas id="barangayPriorityChart"></canvas>
-                    </div>
-                    <div class="chart-legend" id="barangayLegend" 
-                        style="margin-left: 30px; max-height: 300px; overflow-y:auto;"></div>
-                    </div>
-                    <div id="topBarangaysList" class="priority-list"></div>
-                </div>
-                <!-- Barangay Statistics -->
-                <div id="barangayStatisticsContainer" class="hidden">
-                <h2>Resident Priority Statistics</h2>
-                <button id="exportResidentCSVBtn">Export to CSV</button>
-                <div class="chart-container" style="display:flex; align-items:center; justify-content:center; margin-bottom:40px;">
-                <div style="width: 600px; height: 600px;">
-                    <canvas id="residentPriorityChart"></canvas>
-                </div>
-                <div class="chart-legend" id="residentLegend" 
-                    style="margin-left: 30px; max-height: 300px; overflow-y:auto;"></div>
-                </div>
-                <div class="priority-lists">
-                <div id="topResidentsList" class="priority-list"></div>
-                <div id="topEvacueesList" class="priority-list"></div>
-                </div>
-            </div>
-
-                       
-                </div>
-            <div id="deliveryScheduling" class="section hidden">
-                    <h2>Delivery Scheduling</h2>
-                    <div class="card">
-                        <form id="deliveryForm">
-                            <label for="barangaySelect">Select Barangay:</label>
-                            <select id="barangaySelect" required></select>
-
-                            <label for="deliveryDate">Delivery Date:</label>
-                            <input type="date" id="deliveryDate" required>
-
-                            <label for="deliveryDetails">Details:</label>
-                            <textarea id="deliveryDetails" rows="3" required></textarea>
-
-                            <button type="submit">Deliver</button>
-                        </form>
-                        <!-- Deliveries overview -->
-                    <div class="card">
-                    <h3>Scheduled Deliveries Overview</h3>
-                    <div class="table-container">
-                        <table id="adminDeliveriesTable">
-                            <thead>
-                                <tr>
-                                    <th>Barangay</th>
-                                    <th>Date</th>
-                                    <th>Details</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="adminDeliveriesTableBody"></tbody>
-                        </table>
-                    </div>
-                    </div>
-                </div>
-
-</div>
-
-
-            <div id="deliveryStatus" class="section hidden">
-                <h2>Delivery Status</h2>
-                <div class="card">
-                    <h3>Scheduled Deliveries</h3>
-                    <div class="table-container">
-                        <table id="barangayDeliveriesTable">
-                            <thead>
-                                <tr>
-                                    <th>Delivery Date</th>
-                                    <th>Details</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="deliveriesTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ✅ View Residents Modal -->
-            <div id="viewResidentsModal" class="modal hidden">
-                <div class="modal-content">
-                    <span class="close" onclick="closeViewResidentsModal()">&times;</span>
-                    <h2 id="viewResidentsTitle">Residents</h2>
-
-                    <input type="text" id="residentSearchInput" placeholder="Search residents..." style="width:100%;margin-bottom:10px;">
-
-                    <div class="table-container">
-                        <table style="width:100%;">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Age</th>
-                                    <th>Address Zone</th>
-                                    <th>Household No</th>
-                                    <th>Family Members</th>
-                                    <th>Monthly Income</th>
-                                    <th>Aid History</th>
-                                    <th>Evacuee History</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody id="viewResidentsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Change Password Modal -->
-            <div id="changePasswordModal" class="modal hidden">
-                <div class="modal-content">
-                    <span class="close" onclick="document.getElementById('changePasswordModal').classList.add('hidden')">&times;</span>
-                    <h2>Change Password</h2>
-                    <form id="changePasswordForm">
-                        <label for="currentPassword">Current Password</label>
-                        <input type="password" id="currentPassword" required>
-                        <label for="newPassword">New Password</label>
-                        <input type="password" id="newPassword" required>
-                        <label for="confirmNewPassword">Confirm New Password</label>
-                        <input type="password" id="confirmNewPassword" required>
-                        <button type="submit">Update Password</button>
-                    </form>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script type="module" src="./firebase.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-    <script src="chart.js"></script>
-    <script type="module" src="app.js"></script>
-
-    <!-- ✅ Global Message Modal -->
-    <div id="messageModal" class="modal hidden">
-        <div class="modal-content" style="text-align:center;">
-            <h2 id="messageTitle">Message</h2>
-            <p id="messageText"></p>
-            <button id="messageOkBtn" onclick="closeMessageModal()">OK</button>
+            <p>Immediate relief and assistance for families facing crisis situations and emergencies.</p>
+          </article>
         </div>
+      </div>
+    </section>
+
+    <section id="about" class="info-section section-full scroll-snap-section global-background"
+      aria-labelledby="about-title">
+      <img src="pictures/building1.jpg" alt="Background image" class="section-bg-image" />
+      <div class="container">
+        <h2 id="about-title">About DSWD/MSWD</h2>
+        <p>
+          The Department of Social Welfare and Development (DSWD) and the Municipal Social Welfare
+          and Development (MSWD) work together to deliver essential social protection programs,
+          promote inclusive development, and support communities in need.
+        </p>
+        <div class="about-grid">
+          <article class="about-item about-item--vision">
+            <h3 class="about-title vision">Vision</h3>
+            <p>
+              An empowered society where the poor, vulnerable, and disadvantaged sector have immediate and equitable
+              access to opportunities for an improved quality of life.
+            </p>
+          </article>
+          <article class="about-item about-item--mission">
+            <h3 class="about-title mission">Mission</h3>
+            <p>
+              As the authority in the social welfare and development sector, the DSWD develops, implements, enables,
+              and coordinates SWD policies and programs for and with the poor, vulnerable and disadvantaged.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="impact-section section-full scroll-snap-section" aria-labelledby="impact-title">
+      <div class="container">
+        <h2 id="impact-title">Our Impact</h2>
+        <p class="impact-subtitle">Making a difference in our community through dedicated service and commitment</p>
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="icon-circle" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4Zm0 2c-3.33 0-10 1.67-10 5v1h20v-1c0-3.33-6.67-5-10-5Z"
+                  fill="white" />
+              </svg>
+            </div>
+            <div class="stat-number">15,000+</div>
+            <div class="stat-label">Families Served</div>
+          </div>
+          <div class="stat">
+            <div class="icon-circle" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 21h18v-2H3v2Zm2-4h14V8l-7-5-7 5v9Z" fill="white" />
+              </svg>
+            </div>
+            <div class="stat-number">50+</div>
+            <div class="stat-label">Community Programs</div>
+          </div>
+          <div class="stat">
+            <div class="icon-circle" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12 8V4l6 4-6 4V8Zm-2 8H6v-2h4v-4h2v6Zm2-14C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Z"
+                  fill="white" />
+              </svg>
+            </div>
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">Emergency Response</div>
+          </div>
+          <div class="stat">
+            <div class="icon-circle" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M17 3H7v12l5-3 5 3V3Zm-2 18 2-2 2 2 2-2 2 2V3c0-1.1-.9-2-2-2H7C5.9 1 5 1.9 5 3v18l2-2 2 2 2-2 2 2Z"
+                  fill="white" />
+              </svg>
+            </div>
+            <div class="stat-number">20+</div>
+            <div class="stat-label">Years of Service</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="container footer-top">
+      <section class="footer-col footer-brand" aria-label="MSWD">
+        <div class="footer-logos">
+          <img src="pictures/logo1.png" alt="MSWD Logo" class="footer-logo">
+          <img src="pictures/logo2.jpg" alt="Municipality Logo" class="footer-logo">
+        </div>
+        <p>
+          Municipal Social Welfare and Development – Committed to serving our community with integrity and compassion.
+        </p>
+      </section>
+
+      <nav class="footer-col" aria-label="Quick Links">
+        <h3>Quick Links</h3>
+        <ul class="footer-list">
+          <li><a href="#home">Home</a></li>
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#contact">Contact Us</a></li>
+        </ul>
+      </nav>
+
+      <section class="footer-col" aria-label="Services">
+        <h3>Services</h3>
+        <ul class="footer-list">
+          <li>Social Services</li>
+          <li>Family Support</li>
+          <li>Senior Citizens Care</li>
+          <li>Child Protection</li>
+          <li>Emergency Assistance</li>
+        </ul>
+      </section>
+
+      <section class="footer-col" aria-label="Contact Info">
+        <h3>Contact Info</h3>
+        <ul class="footer-list footer-contact">
+          <li class="footer-contact-item">
+            <span class="icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5Z"
+                  fill="currentColor" />
+              </svg>
+            </span>
+            LGU Polangui, Polangui, Albay
+          </li>
+          <li class="footer-contact-item">
+            <span class="icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.4 21 3 13.6 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.24.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                  fill="currentColor" />
+              </svg>
+            </span>
+            0945 357 0566
+          </li>
+          <li class="footer-contact-item">
+            <span class="icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 13L2 6.76V18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6.76L12 13Zm10-9H2l10 6 10-6Z"
+                  fill="currentColor" />
+              </svg>
+            </span>
+            @polangui.gov.ph
+          </li>
+        </ul>
+      </section>
     </div>
+
+    <div class="footer-bottom">
+      <div class="container footer-bottom-inner">
+        <p>© <span id="year"></span> Municipal Social Welfare and Development. All rights reserved.</p>
+        <div class="footer-links"><a href="#">Privacy Policy</a><span class="sep" aria-hidden="true"> | </span><a
+            href="#">Terms of Service</a></div>
+      </div>
+    </div>
+
+    <script>
+      (function () { document.getElementById('year').textContent = new Date().getFullYear(); })();
+    </script>
+
+    <!-- Enhanced Parallax Effect Script -->
+    <script>
+      (function() {
+        'use strict';
+        
+        // Enhanced parallax effect for background images and content
+        function initParallax() {
+          const bgImages = document.querySelectorAll('.section-bg-image');
+          const parallaxElements = document.querySelectorAll('.hero-text, .hero-figure, .service-card, .about-item, .stat');
+          const sections = document.querySelectorAll('.scroll-snap-section');
+          
+          // Add parallax class to background images
+          bgImages.forEach(img => {
+            img.classList.add('parallax');
+          });
+          
+                     // Handle scroll events with enhanced performance
+           function handleScroll() {
+             const scrolled = window.pageYOffset;
+             const windowHeight = window.innerHeight;
+             
+             // Enhanced background image parallax with section-based speeds
+             bgImages.forEach((img, index) => {
+               const rect = img.getBoundingClientRect();
+               const elementTop = rect.top + scrolled;
+               const elementHeight = rect.height;
+               
+               // Calculate how much of the element is visible (works for both directions)
+               const visible = Math.max(0, Math.min(1, 
+                 (windowHeight - rect.top) / (windowHeight + elementHeight)
+               ));
+               
+                               // Much smoother parallax speeds based on section
+                let baseSpeed = 0.3;
+                if (img.closest('.hero-section')) baseSpeed = 0.2;
+                if (img.closest('.services-section')) baseSpeed = 0.4;
+                if (img.closest('.about-section')) baseSpeed = 0.5;
+                
+                // Calculate smooth parallax position that works in both directions
+                const yPos = -(scrolled * baseSpeed);
+               
+               // Apply transform with CSS custom property
+               img.style.setProperty('--scroll-offset', yPos);
+             });
+            
+                         // Content parallax effects with enhanced speeds
+             parallaxElements.forEach((element, index) => {
+               const rect = element.getBoundingClientRect();
+               const elementTop = rect.top + scrolled;
+               const elementHeight = rect.height;
+               
+               // Calculate visibility (works for both directions)
+               const visible = Math.max(0, Math.min(1, 
+                 (windowHeight - rect.top) / (windowHeight + elementHeight)
+               ));
+               
+                               // Much smoother speeds for different content types
+                let speed = 0.1;
+                if (element.classList.contains('hero-text')) speed = 0.15;
+                if (element.classList.contains('hero-figure')) speed = 0.25;
+                if (element.classList.contains('service-card')) speed = 0.08;
+                if (element.classList.contains('about-item')) speed = 0.12;
+                if (element.classList.contains('stat')) speed = 0.05;
+                
+                // Calculate smooth parallax position that works in both directions
+                const yPos = -(scrolled * speed);
+               element.style.setProperty('--scroll-offset', yPos);
+             });
+            
+            // Section transition effects
+            sections.forEach((section, index) => {
+              const rect = section.getBoundingClientRect();
+              const sectionTop = rect.top;
+              const sectionHeight = rect.height;
+              
+              // Calculate section visibility
+              const sectionVisible = Math.max(0, Math.min(1, 
+                (windowHeight - sectionTop) / (windowHeight + sectionHeight)
+              ));
+              
+              // Apply section-specific effects
+              if (sectionVisible > 0.1) {
+                section.style.opacity = '1';
+                section.style.transform = 'translateY(0)';
+                
+                // Add entrance animation for content
+                const contentElements = section.querySelectorAll('.service-card, .about-item, .stat');
+                contentElements.forEach((el, i) => {
+                  setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                  }, i * 100);
+                });
+              }
+            });
+          }
+          
+          // Optimized scroll handling
+          let ticking = false;
+          function requestTick() {
+            if (!ticking) {
+              requestAnimationFrame(handleScroll);
+              ticking = true;
+            }
+          }
+          
+          function onScroll() {
+            ticking = false;
+            requestTick();
+          }
+          
+          // Add scroll listener with passive option for better performance
+          window.addEventListener('scroll', onScroll, { passive: true });
+          
+          // Handle resize events
+          window.addEventListener('resize', () => {
+            handleScroll();
+          }, { passive: true });
+          
+          // Initial call
+          handleScroll();
+          
+          // Add intersection observer for better performance
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+              }
+            });
+          }, {
+            threshold: 0.1,
+            rootMargin: '50px'
+          });
+          
+          // Observe all parallax elements
+          parallaxElements.forEach(el => observer.observe(el));
+          
+          // Initialize content elements with opacity 0
+          parallaxElements.forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+          });
+        }
+        
+        // Initialize parallax when DOM is loaded
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initParallax);
+        } else {
+          initParallax();
+        }
+        
+        // Enhanced smooth scroll for navigation links with section transitions
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+          anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+              const headerHeight = document.querySelector('.site-header').offsetHeight;
+              const targetPosition = target.offsetTop - headerHeight;
+              
+              // Smooth scroll with easing
+              window.scrollTo({
+                top: targetPosition,
+                behavior: 'smooth'
+              });
+              
+              // Add visual feedback
+              this.style.transform = 'scale(0.95)';
+              setTimeout(() => {
+                this.style.transform = 'scale(1)';
+              }, 150);
+            }
+          });
+        });
+        
+      })();
+    </script>
+  </footer>
+
 </body>
+
 </html>

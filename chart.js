@@ -121,21 +121,21 @@ async function loadBarangayPriorityChart(db, getDocs, collection) {
 
   // ✅ Top lists
   document.getElementById('topBarangaysList').innerHTML = `
-    <div class="priority-lists">
-      <div class="priority-list">
+    <div class="cards-row">
+      <div class="priority-card">
         <h3>Top 3 Urgent Barangays</h3>
         <ol>
           ${rows.slice(0,3).map(r => {
             const percent = total > 0 ? ((r.score / total) * 100).toFixed(1) + "%" : "0%";
-            return `<li>${r.barangay} — Percent: ${percent}</li>`;
+            return `<li><span class="pl-name">${r.barangay}</span><span class="pl-value">${percent}</span></li>`;
           }).join('')}
         </ol>
       </div>
-      <div class="priority-list">
+      <div class="priority-card">
         <h3>🚨 Barangay with Most Evacuees</h3>
         ${(() => {
           const mostEvac = [...rows].sort((a,b) => b.evac - a.evac)[0];
-          return mostEvac ? `<p>${mostEvac.barangay} — ${mostEvac.evac} evacuees</p>` : '';
+          return mostEvac ? `<div class="priority-row"><span class="pl-name">${mostEvac.barangay}</span><span class="pl-value">${mostEvac.evac} evacuees</span></div>` : '';
         })()}
       </div>
     </div>`;
@@ -197,21 +197,26 @@ async function loadResidentPriorityChart(db, getDocs, collection, query, where, 
 
   generateInteractiveLegend(window._residentChart, 'residentLegend', 'toggleResident');
 
-  // ✅ Lists
+  // ✅ Lists - Fixed layout structure
   document.getElementById('topResidentsList').innerHTML = `
-    <h3>Top 5 Priority Residents</h3>
-    <ol>
-      ${rows.slice(0,5).map(r => {
-        const percent = total > 0 ? ((r.score / total) * 100).toFixed(1) + "%" : "0%";
-        return `<li>${r.name} — Percent: ${percent}</li>`;
-      }).join('')}
-    </ol>`;
-  document.getElementById('topEvacueesList').innerHTML = `
-    <h3>🚨 Top 5 Most Evacuees</h3>
-    <ol>
-      ${[...rows].sort((a,b) => b.evac - a.evac).slice(0,5).map(r =>
-        `<li>${r.name} — Evacuations: ${r.evac}</li>`).join('')}
-    </ol>`;
+    <div class="cards-row">
+      <div class="priority-card">
+        <h3>Top 5 Priority Residents</h3>
+        <ol>
+          ${rows.slice(0,5).map(r => {
+            const percent = total > 0 ? ((r.score / total) * 100).toFixed(1) + "%" : "0%";
+            return `<li><span class="pl-name">${r.name}</span><span class="pl-value">${percent}</span></li>`;
+          }).join('')}
+        </ol>
+      </div>
+      <div class="priority-card">
+        <h3>🚨 Top 5 Most Evacuees</h3>
+        <ol>
+          ${[...rows].sort((a,b) => b.evac - a.evac).slice(0,5).map(r =>
+            `<li><span class="pl-name">${r.name}</span><span class="pl-value">${r.evac}</span></li>`).join('')}
+        </ol>
+      </div>
+    </div>`;
 }
 
 // ===== Toggle Functions =====
