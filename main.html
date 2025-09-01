@@ -19,9 +19,8 @@
     <link rel="icon" type="image/png" sizes="512x512" href="image/android-chrome-512x512.png">
 </head>
 <body>
-
-    
-
+    <!-- Skip Link for Accessibility -->
+    <a class="skip-link" href="#main">Skip to main content</a>
 
     <!-- ✅ Success and Error Messages -->
     <div class="center-message">
@@ -32,34 +31,15 @@
     <!-- Login Form -->
     <div class="login-container" id="loginContainer">
         <!-- Back Button -->
-    <!-- Back Button (top-left) -->
-    <button type="button"
-    onclick="window.location.href='index.html'"
-    aria-label="Go back"
-    onmouseenter="this.style.background='#e5e7eb'; this.style.transform='scale(1.06)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.15)';"
-    onmouseleave="this.style.background='rgba(17,24,39,0.08)'; this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)';"
-    style="
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        z-index: 1000;
-        width: 36px;
-        height: 36px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: none;
-        border-radius: 9999px;
-        background: rgba(37, 37, 37, 0.08);
-        color: #fffbfb;
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-        transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-        backdrop-filter: blur(4px);
-    ">
-        <span class="material-icons" style="font-size: 20px; line-height: 1;">arrow_back</span>
-    </button>
+        <button type="button"
+        onclick="window.location.href='index.html'"
+        aria-label="Go back"
+        class="back-button"
+        onmouseenter="this.style.background='#e5e7eb'; this.style.transform='scale(1.06)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.15)';"
+        onmouseleave="this.style.background='rgba(17,24,39,0.08)'; this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)';">
+            <span class="material-icons">arrow_back</span>
+        </button>
+        
         <div class="login-box">
             <h1>ReliefPoint</h1>
             <form id="loginForm">
@@ -83,7 +63,9 @@
     <!-- ✅ Request Account Modal -->
     <div id="requestAccountModal" class="modal hidden">
         <div class="modal-content">
-            <h2>Request Account</h2>
+            <div class="modal-header">
+                <h2>Request Account</h2>
+            </div>
             <form id="requestAccountForm">
                 <div class="input-group">
                     <label for="requestUsername">Barangay Name</label>
@@ -111,9 +93,24 @@
 
     <!-- Dashboard -->
     <div class="dashboard-container hidden" id="dashboardContainer">
-        <nav class="sidebar">
-            <h2 id="userRole">Welcome</h2>
-            <ul>
+        <!-- Mobile Navigation Toggle -->
+        <div class="mobile-nav-toggle">
+            <input type="checkbox" id="mobileNavToggle" class="mobile-nav-checkbox" aria-label="Toggle mobile navigation" />
+            <label for="mobileNavToggle" class="mobile-hamburger" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </label>
+        </div>
+
+        <nav class="sidebar" role="navigation" aria-label="Dashboard navigation">
+            <div class="sidebar-header">
+                <h2 id="userRole">Welcome</h2>
+                <button class="close-sidebar" onclick="closeMobileSidebar()" aria-label="Close sidebar">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <ul class="sidebar-menu">
                 <li class="mswd-only"><a href="#" onclick="showSection('barangayManagement')">Manage Barangays</a></li>
                 <li class="mswd-only"><a href="#" onclick="showSection('accountRequests')">Account Requests</a></li>
                 <li class="mswd-only"><a href="#" onclick="showSection('deliveryScheduling')">Delivery Scheduling</a></li>
@@ -125,12 +122,30 @@
             </ul>
         </nav>
 
-        <main class="main-content">
+        <main class="main-content" id="main" role="main">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">
+                    <span class="material-icons">menu</span>
+                </button>
+                <h1 class="mobile-title">Dashboard</h1>
+                <div class="mobile-actions">
+                    <button class="mobile-action-btn" onclick="showChangePassword()" aria-label="Change password">
+                        <span class="material-icons">lock</span>
+                    </button>
+                    <button class="mobile-action-btn" onclick="logout()" aria-label="Logout">
+                        <span class="material-icons">logout</span>
+                    </button>
+                </div>
+            </div>
+
             <div id="accountRequests" class="section hidden">
-                <h2>Account Requests</h2>
+                <div class="section-header">
+                    <h2>Account Requests</h2>
+                </div>
                 <div class="card">
                     <h3>Pending Requests</h3>
-                    <div class="table-container">
+                    <div class="table-container mobile-table">
                         <table id="requestsTable">
                             <thead>
                                 <tr>
@@ -147,9 +162,11 @@
             </div>
 
             <div id="barangayManagement" class="section hidden">
-                <h2>Registered Barangays</h2>
+                <div class="section-header">
+                    <h2>Registered Barangays</h2>
+                </div>
                 <div class="card">
-                    <div class="table-container">
+                    <div class="table-container mobile-table">
                         <table id="barangayTable">
                             <thead>
                                 <tr>
@@ -162,12 +179,19 @@
             </div>
 
             <div id="residentManagement" class="section hidden">
-                <h2>Resident Management</h2>
-                <button onclick="showAddResidentModal()" class="action-button">Add New Resident</button>
+                <div class="section-header">
+                    <h2>Resident Management</h2>
+                    <div class="section-actions">
+                        <button onclick="showAddResidentModal()" class="action-button primary-btn">
+                            <span class="material-icons">add</span>
+                            <span class="btn-text">Add Resident</span>
+                        </button>
+                    </div>
+                </div>
 
                 <div class="card">
-                    <div class="table-container">
-                        <table id="residentsTable" style="margin-top: 20px; width: 100%;">
+                    <div class="table-container mobile-table">
+                        <table id="residentsTable">
                             <thead>
                                 <tr>
                                     <th>Name</th>
@@ -191,122 +215,207 @@
             <!-- Modal for Adding Resident -->
             <div id="addResidentModal" class="modal hidden">
                 <div class="modal-content">
-                    <span class="close" onclick="closeAddResidentModal()">&times;</span>
-                    <h2>Add New Resident</h2>
+                    <div class="modal-header">
+                        <h2>Add New Resident</h2>
+                        <span class="close" onclick="closeAddResidentModal()">&times;</span>
+                    </div>
                     <form id="addResidentForm">
-                        <label for="name">Name:</label>
-                        <input type="text" id="name" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="name">Name:</label>
+                                <input type="text" id="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="age">Age:</label>
+                                <input type="number" id="age" required>
+                            </div>
+                        </div>
 
-                        <label for="age">Age:</label>
-                        <input type="number" id="age" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="addressZone">Address Zone:</label>
+                                <input type="text" id="addressZone" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="householdNumber">Household Number:</label>
+                                <input type="text" id="householdNumber" required>
+                            </div>
+                        </div>
 
-                        <label for="addressZone">Address Zone:</label>
-                        <input type="text" id="addressZone" required>
+                        <div class="form-row">
+                            <div class="form-group checkbox-group">
+                                <label for="student">Student:</label>
+                                <input type="checkbox" id="student">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label for="working">Working:</label>
+                                <input type="checkbox" id="working">
+                            </div>
+                        </div>
 
-                        <label for="householdNumber">Household Number:</label>
-                        <input type="text" id="householdNumber" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="monthlyIncome">Monthly Income:</label>
+                                <input type="number" id="monthlyIncome" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="familyMembers">Family Members:</label>
+                                <input type="number" id="familyMembers" required>
+                            </div>
+                        </div>
 
-                        <label for="student">Student:</label>
-                        <input type="checkbox" id="student">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="aidHistory">Relief Distribution History:</label>
+                                <input type="text" id="aidHistory" required placeholder="Number of times received goods">
+                            </div>
+                            <div class="form-group">
+                                <label for="evacueeHistory">Evacuee History:</label>
+                                <input type="number" id="evacueeHistory" required placeholder="Times evacuated this year">
+                            </div>
+                        </div>
 
-                        <label for="working">Working:</label>
-                        <input type="checkbox" id="working">
-
-                        <label for="monthlyIncome">Monthly Income:</label>
-                        <input type="number" id="monthlyIncome" disabled>
-
-                        <label for="familyMembers">Family Members:</label>
-                        <input type="number" id="familyMembers" required>
-
-                        <label for="aidHistory">Relief Distribution History (Number of times received goods):</label>
-                        <input type="text" id="aidHistory" required>
-
-                        <label for="evacueeHistory">Evacuee History (Times Evacuated this year):</label>
-                        <input type="number" id="evacueeHistory" required>
-
-                        <button type="submit">Submit</button>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">save</span>
+                                <span>Submit</span>
+                            </button>
+                            <button type="button" onclick="closeAddResidentModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
 
             <!-- Modal for Editing Resident -->
             <div id="editResidentModal" class="modal hidden">
-            <div class="modal-content">
-                <span class="close" onclick="closeEditResidentModal()">&times;</span>
-                <h2>Edit Resident</h2>
-                <form id="editResidentForm">
-                    <input type="hidden" id="editResidentId">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Edit Resident</h2>
+                        <span class="close" onclick="closeEditResidentModal()">&times;</span>
+                    </div>
+                    <form id="editResidentForm">
+                        <input type="hidden" id="editResidentId">
 
-                    <label for="editName">Name:</label>
-                    <input type="text" id="editName" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editName">Name:</label>
+                                <input type="text" id="editName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editAge">Age:</label>
+                                <input type="number" id="editAge" required>
+                            </div>
+                        </div>
 
-                    <label for="editAge">Age:</label>
-                    <input type="number" id="editAge" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAddressZone">Address Zone:</label>
+                                <input type="text" id="editAddressZone" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editHouseholdNumber">Household Number:</label>
+                                <input type="text" id="editHouseholdNumber" required>
+                            </div>
+                        </div>
 
-                    <label for="editAddressZone">Address Zone:</label>
-                    <input type="text" id="editAddressZone" required>
+                        <div class="form-row">
+                            <div class="form-group checkbox-group">
+                                <label for="editStudent">Student:</label>
+                                <input type="checkbox" id="editStudent">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label for="editWorking">Working:</label>
+                                <input type="checkbox" id="editWorking">
+                            </div>
+                        </div>
 
-                    <label for="editHouseholdNumber">Household Number:</label>
-                    <input type="text" id="editHouseholdNumber" required>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editMonthlyIncome">Monthly Income:</label>
+                                <input type="number" id="editMonthlyIncome">
+                            </div>
+                            <div class="form-group">
+                                <label for="editFamilyMembers">Family Members:</label>
+                                <input type="number" id="editFamilyMembers" required>
+                            </div>
+                        </div>
 
-                    <label for="editStudent">Student:</label>
-                    <input type="checkbox" id="editStudent">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAidHistory">Relief Distribution History:</label>
+                                <input type="text" id="editAidHistory" required placeholder="Times received">
+                            </div>
+                            <div class="form-group">
+                                <label for="editEvacueeHistory">Evacuee History:</label>
+                                <input type="number" id="editEvacueeHistory" required placeholder="Times evacuated this year">
+                            </div>
+                        </div>
 
-                    <label for="editWorking">Working:</label>
-                    <input type="checkbox" id="editWorking">
-
-                    <label for="editMonthlyIncome">Monthly Income:</label>
-                    <input type="number" id="editMonthlyIncome">
-
-                    <label for="editFamilyMembers">Family Members:</label>
-                    <input type="number" id="editFamilyMembers" required>
-
-                    <label for="editAidHistory">Relief Distribution History (times received):</label>
-                    <input type="text" id="editAidHistory" required>
-
-                    <label for="editEvacueeHistory">Evacuee History (times evacuated this year):</label>
-                    <input type="number" id="editEvacueeHistory" required>
-
-                    <button type="submit">Update</button>
-                </form>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">update</span>
+                                <span>Update</span>
+                            </button>
+                            <button type="button" onclick="closeEditResidentModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-            </div>
-
 
             <div id="statistics" class="section hidden">
                 <!-- MSWD Statistics -->
                 <div id="mswdStatisticsContainer" class="hidden">
-                    <h2>Barangay Priority Statistics</h2>
-                    <button id="exportBarangayCSVBtn">Export to CSV</button>
-                    <div class="chart-container" style="display:flex; align-items:center; justify-content:center; margin-bottom:40px;">
-                    <div style="width: 600px; height: 600px;">
-                        <canvas id="barangayPriorityChart"></canvas>
+                    <div class="section-header">
+                        <h2>Barangay Priority Statistics</h2>
+                        <div class="section-actions">
+                            <button id="exportBarangayCSVBtn" class="export-btn">
+                                <span class="material-icons">download</span>
+                                <span class="btn-text">Export CSV</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="chart-legend" id="barangayLegend" 
-                        style="margin-left: 30px; max-height: 300px; overflow-y:auto;"></div>
+                    <div class="chart-container mobile-chart">
+                        <div class="chart-wrapper">
+                            <canvas id="barangayPriorityChart"></canvas>
+                        </div>
+                        <div class="chart-legend" id="barangayLegend"></div>
                     </div>
                     <div id="topBarangaysList" class="priority-list"></div>
                 </div>
+                
                 <!-- Barangay Statistics -->
                 <div id="barangayStatisticsContainer" class="hidden">
-                <h2>Resident Priority Statistics</h2>
-                <button id="exportResidentCSVBtn">Export to CSV</button>
-                <div class="chart-container" style="display:flex; align-items:center; justify-content:center; margin-bottom:40px;">
-                <div style="width: 600px; height: 600px;">
-                    <canvas id="residentPriorityChart"></canvas>
-                </div>
-                <div class="chart-legend" id="residentLegend" 
-                    style="margin-left: 30px; max-height: 300px; overflow-y:auto;"></div>
-                </div>
-                <div class="priority-lists">
-                <div id="topResidentsList" class="priority-list"></div>
+                    <div class="section-header">
+                        <h2>Resident Priority Statistics</h2>
+                        <div class="section-actions">
+                            <button id="exportResidentCSVBtn" class="export-btn">
+                                <span class="material-icons">download</span>
+                                <span class="btn-text">Export CSV</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container mobile-chart">
+                        <div class="chart-wrapper">
+                            <canvas id="residentPriorityChart"></canvas>
+                        </div>
+                        <div class="chart-legend" id="residentLegend"></div>
+                    </div>
+                    <div class="priority-lists">
+                        <div id="topResidentsList" class="priority-list"></div>
+                    </div>
                 </div>
             </div>
 
-                       
-                </div>
             <div id="deliveryScheduling" class="section hidden">
-                <h2>🚚 Delivery Scheduling</h2>
+                <div class="section-header">
+                    <h2>🚚 Delivery Scheduling</h2>
+                </div>
                 
                 <!-- Enhanced Delivery Form Card -->
                 <div class="card delivery-form-card">
@@ -411,7 +520,7 @@
                         </div>
                     </div>
                     
-                    <div class="table-container enhanced-table">
+                    <div class="table-container enhanced-table mobile-table">
                         <table id="adminDeliveriesTable">
                             <thead>
                                 <tr>
@@ -454,14 +563,13 @@
                 </div>
             </div>
 
-</div>
-
-
             <div id="deliveryStatus" class="section hidden">
-                <h2>Delivery Status</h2>
+                <div class="section-header">
+                    <h2>Delivery Status</h2>
+                </div>
                 <div class="card">
                     <h3>Scheduled Deliveries</h3>
-                    <div class="table-container">
+                    <div class="table-container mobile-table">
                         <table id="barangayDeliveriesTable">
                             <thead>
                                 <tr>
@@ -478,58 +586,59 @@
             </div>
 
             <!-- ✅ Enhanced View Residents Modal -->
-<div id="viewResidentsModal" class="modal hidden">
-    <div class="modal-content residents-modal-content">
-        <div class="modal-header">
-            <h2 id="viewResidentsTitle">🏘️ Residents</h2>
-            <span class="close" onclick="closeViewResidentsModal()">&times;</span>
-        </div>
-        
-        <div class="modal-body">
-            <div class="search-section">
-                <div class="search-box">
-                    <span class="search-icon">🔍</span>
-                    <input 
-                        type="text" 
-                        id="residentSearchInput" 
-                        placeholder="Search residents by name, age, address, or any details..."
-                    >
-                </div>
-                <div class="search-info">
-                    <span class="info-icon">ℹ️</span>
-                    <span class="info-text">Type to search through all resident information</span>
+            <div id="viewResidentsModal" class="modal hidden">
+                <div class="modal-content residents-modal-content">
+                    <div class="modal-header">
+                        <h2 id="viewResidentsTitle">🏘️ Residents</h2>
+                        <span class="close" onclick="closeViewResidentsModal()">&times;</span>
+                    </div>
+                    
+                    <div class="modal-body">
+                        <div class="search-section">
+                            <div class="search-box">
+                                <span class="search-icon">🔍</span>
+                                <input 
+                                    type="text" 
+                                    id="residentSearchInput" 
+                                    placeholder="Search residents by name, age, address, or any details..."
+                                >
+                            </div>
+                            <div class="search-info">
+                                <span class="info-icon">ℹ️</span>
+                                <span class="info-text">Type to search through all resident information</span>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container enhanced-residents-table">
+                            <div class="table-wrapper">
+                                <table id="viewResidentsTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="name-col">Name</th>
+                                            <th class="age-col">Age</th>
+                                            <th class="address-col">Address Zone</th>
+                                            <th class="household-col">Household No</th>
+                                            <th class="family-col">Family Members</th>
+                                            <th class="income-col">Monthly Income</th>
+                                            <th class="aid-col">Aid History</th>
+                                            <th class="evacuee-col">Evacuee History</th>
+                                            <th class="status-col">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="viewResidentsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-                                <div class="table-container enhanced-residents-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Age</th>
-                                    <th>Address Zone</th>
-                                    <th>Household No</th>
-                                    <th>Family Members</th>
-                                    <th>Monthly Income</th>
-                                    <th>Aid History</th>
-                                    <th>Evacuee History</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="viewResidentsTableBody"></tbody>
-                        </table>
-                    </div>
-        </div>
-        
-
-    </div>
-</div>
 
             <!-- Enhanced Change Password Modal -->
             <div id="changePasswordModal" class="modal hidden">
                 <div class="modal-content">
-                    <span class="close" onclick="closeChangePasswordModal()">&times;</span>
-                    <h2>Change Password</h2>
+                    <div class="modal-header">
+                        <h2>Change Password</h2>
+                    </div>
                     <form id="changePasswordForm">
                         <div class="form-group">
                             <label for="currentPassword">Current Password</label>
@@ -552,9 +661,16 @@
                             <input type="password" id="confirmNewPassword" required placeholder="Confirm your new password">
                         </div>
                         
-                        <button type="submit">
-                            <span>Update Password</span>
-                        </button>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">lock_reset</span>
+                                <span>Update Password</span>
+                            </button>
+                            <button type="button" onclick="closeChangePasswordModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -575,5 +691,42 @@
             <button id="messageOkBtn" onclick="closeMessageModal()">OK</button>
         </div>
     </div>
+
+    <!-- Mobile Navigation Script -->
+    <script>
+        // Mobile sidebar functionality
+        function toggleMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const checkbox = document.getElementById('mobileNavToggle');
+            checkbox.checked = !checkbox.checked;
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const checkbox = document.getElementById('mobileNavToggle');
+            checkbox.checked = false;
+            sidebar.classList.remove('mobile-open');
+        }
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', function(event) {
+            const sidebar = document.querySelector('.sidebar');
+            const mobileNavToggle = document.querySelector('.mobile-nav-toggle');
+            
+            if (!sidebar.contains(event.target) && !mobileNavToggle.contains(event.target)) {
+                closeMobileSidebar();
+            }
+        });
+
+        // Close sidebar when clicking on a navigation link
+        document.querySelectorAll('.sidebar-menu a').forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    closeMobileSidebar();
+                }
+            });
+        });
+    </script>
 </body>
 </html>
