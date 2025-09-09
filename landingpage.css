@@ -774,6 +774,263 @@ main {
 @media (max-width: 600px) {
   .stats-grid { grid-template-columns: 1fr; }
   .services-grid { grid-template-columns: 1fr; }
+  
+  /* Improved mobile navigation */
+  .nav-wrapper {
+    padding: 12px 0;
+    gap: 12px;
+  }
+  
+  .site-nav {
+    inset: 50px 0 auto 0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 12px 12px;
+  }
+  
+  .site-nav ul {
+    padding: 16px 24px 20px;
+    gap: 8px;
+  }
+  
+  .site-nav a {
+    padding: 12px 16px;
+    font-size: 1rem;
+    border-radius: 8px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Hero section mobile improvements */
+  .hero-content {
+    padding: 60px 0 50px;
+  }
+  
+  .hero-content h1 {
+    font-size: clamp(1.8rem, 6vw, 2.5rem);
+    margin-bottom: 16px;
+    line-height: 1.2;
+  }
+  
+  .hero-subtitle {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 24px;
+    padding: 0 16px;
+  }
+  
+  .hero-actions {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .btn {
+    padding: 14px 24px;
+    font-size: 1rem;
+    min-height: 48px;
+    min-width: 200px;
+    border-radius: 12px;
+  }
+  
+  /* Service cards mobile improvements */
+  .service-card {
+    padding: 20px;
+    text-align: center;
+  }
+  
+  .service-card-header {
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .icon-service {
+    margin: 0 auto;
+  }
+  
+  /* About section mobile */
+  .about-item {
+    padding: 20px;
+    text-align: center;
+  }
+  
+  /* Info sections mobile padding */
+  .info-section {
+    padding: 40px 0;
+  }
+  
+  .services-intro,
+  .info-section h2,
+  .info-section p {
+    padding: 0 16px;
+  }
+}
+
+/* Extra small mobile (phones in portrait) */
+@media (max-width: 480px) {
+  .container {
+    width: min(100%, 100vw - 32px);
+    margin: 0 auto;
+  }
+  
+  /* Ultra-mobile navigation */
+  .brand-logos .logo {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .brand-logos .logo:last-child {
+    width: 48px;
+    height: 48px;
+    transform: translate(-2px, 2px);
+  }
+  
+  .nav-cta .btn-cta {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+  
+  /* Hero ultra-mobile */
+  .hero-content {
+    padding: 40px 0 40px;
+  }
+  
+  .hero-content h1 {
+    font-size: clamp(1.6rem, 8vw, 2.2rem);
+    margin-bottom: 12px;
+  }
+  
+  .hero-subtitle {
+    font-size: 0.95rem;
+    padding: 0 12px;
+  }
+  
+  .btn {
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    min-width: 160px;
+  }
+  
+  /* Service cards ultra-mobile */
+  .service-card {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  
+  .service-card h3 {
+    font-size: 1rem;
+  }
+  
+  .service-card p {
+    font-size: 0.9rem;
+  }
+  
+  /* About cards ultra-mobile */
+  .about-item {
+    padding: 16px;
+  }
+  
+  .about-title {
+    font-size: 1rem;
+  }
+  
+  .about-item p {
+    font-size: 0.9rem;
+  }
+  
+  /* Stats ultra-mobile */
+  .impact-section {
+    padding: 40px 0;
+  }
+  
+  .stat-number {
+    font-size: clamp(1.2rem, 6vw, 1.6rem);
+  }
+  
+  .stat-label {
+    font-size: 0.85rem;
+  }
+  
+  .icon-circle {
+    width: 48px;
+    height: 48px;
+  }
+  
+  /* Footer ultra-mobile */
+  .footer-top {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding: 32px 0;
+    text-align: center;
+  }
+  
+  .footer-logos {
+    justify-content: center;
+  }
+  
+  .footer-logo {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .footer-contact-item {
+    justify-content: center;
+    gap: 8px;
+  }
+  
+  .footer-bottom {
+    text-align: center;
+    padding: 20px 0;
+  }
+  
+  .footer-bottom-inner {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+/* Tablet and medium screen improvements */
+@media (max-width: 768px) {
+  /* Navigation improvements for tablets */
+  .hamburger {
+    width: 36px;
+    height: 28px;
+  }
+  
+  .hamburger span {
+    height: 4px;
+    margin: 6px 0;
+  }
+  
+  /* Footer tablet layout */
+  .footer-top {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+}
+
+/* Large tablet breakpoint */
+@media (max-width: 1024px) {
+  .container {
+    width: min(1024px, 94%);
+  }
+  
+  .hero-content {
+    padding: 70px 0 60px;
+  }
+  
+  .services-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
 }
 
 /* Enhanced glass effect for icon circles */
@@ -787,6 +1044,32 @@ main {
     0 4px 16px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: all 0.3s ease;
+}
+
+/* Touch device optimizations for landing page */
+@media (hover: none) and (pointer: coarse) {
+  .btn:hover,
+  .service-card:hover {
+    transform: none;
+    filter: none;
+  }
+  
+  .btn {
+    min-height: 48px;
+    padding: 14px 24px;
+    font-size: 1rem;
+  }
+  
+  .site-nav a {
+    min-height: 48px;
+    padding: 14px 16px;
+  }
+  
+  .hamburger {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px;
+  }
 }
 
 /* Enhanced icon styling for service cards */

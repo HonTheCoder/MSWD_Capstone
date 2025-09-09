@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#1a73e8">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <title>Relief Allocation App</title>
     <link rel="stylesheet" href="styles.css">
@@ -141,6 +145,173 @@
     .action-button:disabled:hover, .receive-btn:disabled:hover {
         transform: none;
         background: #6b7280;
+    }
+    
+    /* Enhanced delivery details styles */
+    .details-cell {
+        min-width: 300px;
+        max-width: 400px;
+        vertical-align: top;
+    }
+    
+    .details-preview {
+        padding: 4px 0;
+    }
+    
+    .details-text, .goods-preview {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+    
+    .details-text {
+        color: #374151;
+        font-weight: 500;
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    .expand-indicator {
+        color: #6b7280;
+        font-size: 10px;
+        transition: transform 0.2s ease;
+        margin-left: auto;
+    }
+    
+    .goods-preview {
+        color: #6b7280;
+        font-size: 12px;
+        padding-left: 18px;
+    }
+    
+    .details-expanded-row {
+        background: #f8fafc;
+        border-left: 3px solid #0ea5e9;
+    }
+    
+    .details-expanded-row.hidden {
+        display: none;
+    }
+    
+    .expanded-content {
+        padding: 16px;
+        background: #f8fafc;
+        border-radius: 6px;
+        margin: 8px;
+    }
+    
+    .full-details h4, .full-goods h4 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2937;
+    }
+    
+    .full-details p {
+        margin: 0;
+        color: #374151;
+        line-height: 1.5;
+        font-size: 13px;
+    }
+    
+    .goods-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+    }
+    
+    .goods-item {
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    
+    .no-goods {
+        color: #9ca3af;
+        font-style: italic;
+        margin: 0;
+        font-size: 12px;
+    }
+    
+    .details-cell:hover .details-preview {
+        background: #f1f5f9;
+        border-radius: 4px;
+        padding: 6px;
+    }
+    
+    .row-expanded {
+        background-color: #f0f9ff !important;
+        border-left: 3px solid #0ea5e9;
+    }
+    
+    .row-expanded .details-preview {
+        background: #e0f2fe;
+        border-radius: 4px;
+        padding: 6px;
+    }
+    
+    /* Status badges improvements */
+    .status-transit { background: #ddd6fe; color: #7c3aed; }
+    
+    /* Barangay delivery details now use the same expandable design as admin */
+    
+    /* Barangay action buttons */
+    .barangay-action-buttons {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    
+    .print-receipt-btn {
+        background: #059669;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        transition: background-color 0.2s;
+    }
+    
+    .print-receipt-btn:hover {
+        background: #047857;
+    }
+    
+    .print-receipt-btn .btn-icon {
+        font-size: 12px;
+    }
+    
+    .print-receipt-btn .btn-text {
+        font-size: 10px;
+    }
+    
+    /* Responsive improvements for delivery table */
+    @media (max-width: 768px) {
+        .details-cell {
+            min-width: 200px;
+            max-width: 300px;
+        }
+        
+        .expanded-content {
+            padding: 12px;
+            margin: 4px;
+        }
+        
+        .goods-grid {
+            flex-direction: column;
+            gap: 4px;
+        }
     }
     
     /* Print-friendly styles */

@@ -238,6 +238,12 @@ async function initializeUser(userData) {
         
         const barangayName = userData.username.replace('barangay_', '');
         loadResidentsForBarangay(barangayName); // 🔥 Automatic load residents pag login
+        
+        // Setup barangay-specific button functionality
+        setTimeout(() => {
+            setupBarangayButtons();
+        }, 100); // Small delay to ensure DOM is ready
+        
         showSection('deliveryStatus');
     }
 }
@@ -436,9 +442,55 @@ function loadBarangayDeliveries(barangay) {
             const row = document.createElement('tr');
             const deliveryDate = d.deliveryDate?.toDate?.();
             const dateStr = deliveryDate ? deliveryDate.toLocaleDateString() : 'No Date';
-            const tds = [dateStr, d.details || '', d.status || 'Pending'];
-            tds.forEach(text => { const td = document.createElement('td'); td.textContent = String(text); row.appendChild(td); });
+            
+            // Create enhanced details with goods information (expandable like admin)
+            const goodsItems = [];
+            if (d.goods) {
+                if (d.goods.rice > 0) goodsItems.push(`🌾 ${d.goods.rice} Rice`);
+                if (d.goods.biscuits > 0) goodsItems.push(`🍪 ${d.goods.biscuits} Biscuits`);
+                if (d.goods.canned > 0) goodsItems.push(`🥫 ${d.goods.canned} Canned`);
+                if (d.goods.shirts > 0) goodsItems.push(`👕 ${d.goods.shirts} Shirts`);
+            }
+            
+            const detailsPreview = d.details && d.details.length > 40 ? d.details.substring(0, 40) + '...' : (d.details || 'No description');
+            const goodsPreview = goodsItems.length > 2 ? goodsItems.slice(0, 2).join(', ') + `... +${goodsItems.length - 2} more` : goodsItems.join(', ');
+            
+            const hasExpandableDetails = goodsItems.length > 0 || (d.details && d.details.length > 40);
+            
+            // Create table cells
+            const tdDate = document.createElement('td');
+            tdDate.textContent = dateStr;
+            
+            const tdDetails = document.createElement('td');
+            tdDetails.innerHTML = `
+                <div class="details-cell" ${hasExpandableDetails ? `onclick="toggleBarangayDeliveryDetails('${docSnap.id}')" style="cursor: pointer;"` : ''}>
+                    <div class="details-preview">
+                        <div class="details-text" title="${d.details || 'No description'}">
+                            <span class="details-icon">📝</span>
+                            ${detailsPreview}
+                            ${hasExpandableDetails ? '<span class="expand-indicator">▼</span>' : ''}
+                        </div>
+                        <div class="goods-preview" title="${goodsItems.join(', ')}">
+                            <span class="goods-icon">📦</span>
+                            ${goodsPreview || 'No items'}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const tdStatus = document.createElement('td');
+            tdStatus.textContent = d.status || 'Pending';
+            
+            row.appendChild(tdDate);
+            row.appendChild(tdDetails);
+            row.appendChild(tdStatus);
             const tdBtn = document.createElement('td');
+            
+            // Create action buttons container
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'barangay-action-buttons';
+            
+            // Main action button (Received/Status)
             const btn = document.createElement('button');
             if (d.status === 'Pending') {
                 btn.textContent = 'Received';
@@ -466,9 +518,50 @@ function loadBarangayDeliveries(barangay) {
                 btn.disabled = true;
                 btn.className = 'status-btn';
             }
-            tdBtn.appendChild(btn);
+            
+            // Print receipt button (always available)
+            const printBtn = document.createElement('button');
+            printBtn.innerHTML = '<span class="btn-icon">🖨️</span><span class="btn-text">Print</span>';
+            printBtn.className = 'print-receipt-btn';
+            printBtn.title = 'Print delivery receipt';
+            printBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent row expansion
+                printBarangayDeliveryReceipt(docSnap.id, d);
+            });
+            
+            buttonContainer.appendChild(btn);
+            buttonContainer.appendChild(printBtn);
+            tdBtn.appendChild(buttonContainer);
             row.appendChild(tdBtn);
             tableBody.appendChild(row);
+            
+            // Create expandable details row if needed (like admin design)
+            if (hasExpandableDetails) {
+                const expandRow = document.createElement("tr");
+                expandRow.className = "details-expanded-row hidden";
+                expandRow.id = `barangay-details-row-${docSnap.id}`;
+                
+                const expandCell = document.createElement("td");
+                expandCell.colSpan = 4; // 4 columns for barangay table
+                expandCell.innerHTML = `
+                    <div class="expanded-content">
+                        <div class="full-details">
+                            <h4>📝 Full Details:</h4>
+                            <p>${d.details || 'No description provided'}</p>
+                        </div>
+                        <div class="full-goods">
+                            <h4>📦 Items Received:</h4>
+                            <div class="goods-grid">
+                                ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
+                            </div>
+                            ${goodsItems.length === 0 ? '<p class="no-goods">No specific items listed</p>' : ''}
+                        </div>
+                    </div>
+                `;
+                
+                expandRow.appendChild(expandCell);
+                tableBody.appendChild(expandRow);
+            }
         });
     });
     window._unsubDeliveries = unsub;
@@ -552,27 +645,42 @@ async function updateDeliveryStatus(deliveryId, newStatus) {
 }
 
 // Function to handle scheduling deliveries
+let isSchedulingDelivery = false; // Global flag to prevent duplicates
+
 async function handleScheduleDelivery() {
-    // Get form values
-    const barangay = document.getElementById("barangaySelect").value;
-    const deliveryDate = document.getElementById("deliveryDate").value;
-    const deliveryDetails = document.getElementById("deliveryDetails").value;
-
-    const goods = {
-        rice: Number(document.getElementById('goodsRice')?.value || 0),
-        biscuits: Number(document.getElementById('goodsBiscuits')?.value || 0),
-        canned: Number(document.getElementById('goodsCanned')?.value || 0),
-        shirts: Number(document.getElementById('goodsShirts')?.value || 0),
-    };
-
-    if (!barangay || !deliveryDate || !deliveryDetails) {
-        showError("All fields are required!");
+    // Prevent duplicate submissions
+    if (isSchedulingDelivery) {
+        console.log('Delivery scheduling already in progress, ignoring duplicate request');
         return;
     }
-
+    
+    isSchedulingDelivery = true;
+    
     try {
+        // Get form values
+        const barangay = document.getElementById("barangaySelect").value;
+        const deliveryDate = document.getElementById("deliveryDate").value;
+        const deliveryDetails = document.getElementById("deliveryDetails").value;
+
+        const goods = {
+            rice: Number(document.getElementById('goodsRice')?.value || 0),
+            biscuits: Number(document.getElementById('goodsBiscuits')?.value || 0),
+            canned: Number(document.getElementById('goodsCanned')?.value || 0),
+            shirts: Number(document.getElementById('goodsShirts')?.value || 0),
+        };
+
+        if (!barangay || !deliveryDate || !deliveryDetails) {
+            showError("All fields are required!");
+            return;
+        }
+
+        // Create unique delivery ID to prevent duplicates
+        const deliveryId = `${barangay}-${deliveryDate}-${Date.now()}`;
+        console.log('Creating delivery:', deliveryId);
+
         // Save delivery with goods
         await addDoc(collection(db, 'deliveries'), {
+            deliveryId, // Add unique ID
             barangay,
             deliveryDate: Timestamp.fromDate(new Date(deliveryDate)),
             details: deliveryDetails,
@@ -590,6 +698,11 @@ async function handleScheduleDelivery() {
         console.error('Error scheduling delivery:', error);
         showError('Failed to schedule delivery.');
         throw error; // Re-throw to be handled by the form submission
+    } finally {
+        // Always reset the flag
+        setTimeout(() => {
+            isSchedulingDelivery = false;
+        }, 2000); // 2 second cooldown
     }
 }
 
@@ -686,13 +799,36 @@ function renderDeliveries(deliveries) {
         `;
         row.appendChild(tdDate);
 
-        // Details with enhanced styling
+        // Details with enhanced styling and expandable goods
         const tdDetails = document.createElement("td");
+        const goodsItems = [];
+        if (delivery.rawData?.goods) {
+            const goods = delivery.rawData.goods;
+            if (goods.rice > 0) goodsItems.push(`🌾 ${goods.rice} Rice`);
+            if (goods.biscuits > 0) goodsItems.push(`🍪 ${goods.biscuits} Biscuits`);
+            if (goods.canned > 0) goodsItems.push(`🥫 ${goods.canned} Canned`);
+            if (goods.shirts > 0) goodsItems.push(`👕 ${goods.shirts} Shirts`);
+        }
+        
+        const detailsPreview = delivery.details.length > 40 ? delivery.details.substring(0, 40) + '...' : delivery.details;
+        const goodsPreview = goodsItems.length > 2 ? goodsItems.slice(0, 2).join(', ') + `... +${goodsItems.length - 2} more` : goodsItems.join(', ');
+        
+        // Create a new row for expanded details instead of absolute positioning
+        const hasExpandedDetails = goodsItems.length > 0 || delivery.details.length > 50;
+        
         tdDetails.innerHTML = `
             <div class="details-cell">
-                <span class="details-icon">📝</span>
-                <span class="details-text">${delivery.details}</span>
-                ${delivery.rawData?.goods ? `<div class="goods-mini">Rice: ${delivery.rawData.goods.rice||0}, Biscuits: ${delivery.rawData.goods.biscuits||0}, Canned: ${delivery.rawData.goods.canned||0}, Shirts: ${delivery.rawData.goods.shirts||0}</div>` : ''}
+                <div class="details-preview" ${hasExpandedDetails ? `onclick="toggleDeliveryDetails('${delivery.id}')" style="cursor: pointer;"` : ''}>
+                    <div class="details-text" title="${delivery.details}">
+                        <span class="details-icon">📝</span>
+                        ${detailsPreview}
+                        ${hasExpandedDetails ? '<span class="expand-indicator">▼</span>' : ''}
+                    </div>
+                    <div class="goods-preview" title="${goodsItems.join(', ')}">
+                        <span class="goods-icon">📦</span>
+                        ${goodsPreview || 'No items'}
+                    </div>
+                </div>
             </div>
         `;
         row.appendChild(tdDetails);
@@ -727,6 +863,34 @@ function renderDeliveries(deliveries) {
         row.appendChild(tdAction);
 
         tableBody.appendChild(row);
+        
+        // Create expandable details row if needed
+        if (goodsItems.length > 0 || delivery.details.length > 50) {
+            const expandRow = document.createElement("tr");
+            expandRow.className = "details-expanded-row hidden";
+            expandRow.id = `details-row-${delivery.id}`;
+            
+            const expandCell = document.createElement("td");
+            expandCell.colSpan = 5;
+            expandCell.innerHTML = `
+                <div class="expanded-content">
+                    <div class="full-details">
+                        <h4>📝 Full Details:</h4>
+                        <p>${delivery.details}</p>
+                    </div>
+                    <div class="full-goods">
+                        <h4>📦 Items to Deliver:</h4>
+                        <div class="goods-grid">
+                            ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
+                        </div>
+                        ${goodsItems.length === 0 ? '<p class="no-goods">No specific items listed</p>' : ''}
+                    </div>
+                </div>
+            `;
+            
+            expandRow.appendChild(expandCell);
+            tableBody.appendChild(expandRow);
+        }
     });
 }
 
@@ -760,6 +924,32 @@ function showEmptyState(show) {
         } else {
             emptyState.classList.add("hidden");
             table.style.display = "table";
+        }
+    }
+}
+
+// Toggle delivery details expansion
+function toggleDeliveryDetails(deliveryId) {
+    const detailsRow = document.getElementById(`details-row-${deliveryId}`);
+    const mainRow = detailsRow?.previousElementSibling;
+    const indicator = mainRow?.querySelector('.expand-indicator');
+    
+    if (detailsRow && mainRow) {
+        const isExpanding = detailsRow.classList.contains('hidden');
+        detailsRow.classList.toggle('hidden');
+        
+        // Rotate the indicator and add visual feedback
+        if (indicator) {
+            indicator.style.transform = isExpanding ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        
+        // Add visual feedback to the main row
+        if (isExpanding) {
+            mainRow.classList.add('row-expanded');
+            detailsRow.style.display = 'table-row';
+        } else {
+            mainRow.classList.remove('row-expanded');
+            detailsRow.style.display = 'none';
         }
     }
 }
@@ -1470,6 +1660,44 @@ function addDoubleClickPrevention(button, asyncFunction, loadingText = 'Processi
   });
 }
 
+// Setup barangay-specific buttons after login
+function setupBarangayButtons() {
+  console.log('Setting up barangay buttons...');
+  
+  // Setup barangay delivery history button
+  const deliveryHistoryBtn = document.getElementById('viewDeliveryHistoryBtn');
+  console.log('Delivery history button found:', !!deliveryHistoryBtn);
+  if (deliveryHistoryBtn) {
+    console.log('Setting up delivery history button event listener');
+    // Remove any existing listeners first
+    deliveryHistoryBtn.replaceWith(deliveryHistoryBtn.cloneNode(true));
+    const newBtn = document.getElementById('viewDeliveryHistoryBtn');
+    newBtn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      console.log('Delivery history button clicked!');
+      try {
+        await showDeliveryHistory();
+      } catch (error) {
+        console.error('Error showing delivery history:', error);
+        showError('Failed to load delivery history: ' + error.message);
+      }
+    });
+  } else {
+    console.warn('Delivery history button not found during setup');
+    // Try to find it after a short delay
+    setTimeout(() => {
+      const laterBtn = document.getElementById('viewDeliveryHistoryBtn');
+      if (laterBtn) {
+        console.log('Found delivery history button on retry');
+        laterBtn.addEventListener('click', async function(e) {
+          e.preventDefault();
+          await showDeliveryHistory();
+        });
+      }
+    }, 500);
+  }
+}
+
 // ===== Goods Inventory UI (MSWD) =====
 document.addEventListener('DOMContentLoaded', async function() {
   // Load totals if Track Goods section exists
@@ -1506,11 +1734,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     addDoubleClickPrevention(summaryBtn, generateSummaryReport, 'Generating Report...');
   }
   
-  // Setup barangay delivery history button with double-click prevention
-  const deliveryHistoryBtn = document.getElementById('viewDeliveryHistoryBtn');
-  if (deliveryHistoryBtn) {
-    addDoubleClickPrevention(deliveryHistoryBtn, showDeliveryHistory, 'Loading History...');
-  }
+  // Barangay-specific buttons are set up after login in setupBarangayButtons()
   
   // Setup delivery form event listener with double-click prevention
   const deliveryForm = document.getElementById('deliveryForm');
@@ -2474,12 +2698,18 @@ async function showDeliveryHistory() {
         }
         
         const modal = document.getElementById('deliveryHistoryModal');
-        if (!modal) return;
+        if (!modal) {
+            showError('Delivery history modal not found.');
+            return;
+        }
         
         // Get all deliveries for this barangay
         const deliveries = await getDeliveries(loggedInUserData.username);
         const historyBody = document.getElementById('deliveryHistoryBody');
-        if (!historyBody) return;
+        if (!historyBody) {
+            showError('History table body not found.');
+            return;
+        }
         
         // Clear existing data
         historyBody.innerHTML = '';
@@ -2495,8 +2725,10 @@ async function showDeliveryHistory() {
             } else {
                 completedDeliveries.forEach(delivery => {
                     const row = document.createElement('tr');
-                    const deliveryDate = delivery.deliveryDate?.toDate ? delivery.deliveryDate.toDate() : new Date();
-                    const updatedAt = delivery.updatedAt || new Date();
+                    
+                    // Safely handle dates
+                    const deliveryDate = safeToDate(delivery.deliveryDate);
+                    const updatedAt = safeToDate(delivery.updatedAt);
                     
                     // Format items received
                     let itemsReceived = 'N/A';
@@ -2524,10 +2756,255 @@ async function showDeliveryHistory() {
         // Show modal
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        modal.style.pointerEvents = 'auto';
+        
     } catch (error) {
         console.error('Error loading delivery history:', error);
-        showError('Failed to load delivery history.');
+        showError('Failed to load delivery history: ' + error.message);
     }
+}
+
+// Helper function to safely convert various date formats to Date object
+function safeToDate(dateInput) {
+    if (!dateInput) return new Date();
+    
+    // Firestore Timestamp with toDate() method
+    if (dateInput.toDate && typeof dateInput.toDate === 'function') {
+        return dateInput.toDate();
+    }
+    
+    // Already a Date object
+    if (dateInput instanceof Date) {
+        return dateInput;
+    }
+    
+    // String or number that can be converted to Date
+    try {
+        return new Date(dateInput);
+    } catch (error) {
+        console.warn('Failed to convert date:', dateInput, error);
+        return new Date();
+    }
+}
+
+// Toggle barangay delivery details expansion (similar to admin)
+function toggleBarangayDeliveryDetails(deliveryId) {
+    const detailsRow = document.getElementById(`barangay-details-row-${deliveryId}`);
+    const mainRow = detailsRow?.previousElementSibling;
+    const indicator = mainRow?.querySelector('.expand-indicator');
+    
+    if (detailsRow && mainRow) {
+        const isExpanding = detailsRow.classList.contains('hidden');
+        detailsRow.classList.toggle('hidden');
+        
+        // Rotate the indicator and add visual feedback
+        if (indicator) {
+            indicator.style.transform = isExpanding ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        
+        // Add visual feedback to the main row
+        if (isExpanding) {
+            mainRow.classList.add('row-expanded');
+            detailsRow.style.display = 'table-row';
+        } else {
+            mainRow.classList.remove('row-expanded');
+            detailsRow.style.display = 'none';
+        }
+    }
+}
+
+// Print receipt for barangay delivery
+function printBarangayDeliveryReceipt(deliveryId, deliveryData) {
+    const barangayName = loggedInUserData?.username?.replace('barangay_', '') || 'Unknown Barangay';
+    
+    // Safely handle dates
+    const deliveryDate = safeToDate(deliveryData.deliveryDate);
+    const receivedDate = safeToDate(deliveryData.updatedAt);
+    
+    // Format goods list
+    const goodsList = [];
+    if (deliveryData.goods) {
+        if (deliveryData.goods.rice > 0) goodsList.push(`Rice: ${deliveryData.goods.rice} sacks`);
+        if (deliveryData.goods.biscuits > 0) goodsList.push(`Biscuits: ${deliveryData.goods.biscuits} boxes`);
+        if (deliveryData.goods.canned > 0) goodsList.push(`Canned Goods: ${deliveryData.goods.canned} boxes`);
+        if (deliveryData.goods.shirts > 0) goodsList.push(`Shirts: ${deliveryData.goods.shirts} packs`);
+    }
+    
+    const receiptHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Delivery Receipt - ${barangayName}</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    max-width: 600px; 
+                    margin: 20px auto; 
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                .header {
+                    text-align: center;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }
+                .receipt-title {
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2563eb;
+                    margin-bottom: 5px;
+                }
+                .receipt-subtitle {
+                    color: #666;
+                    font-size: 16px;
+                }
+                .info-section {
+                    margin-bottom: 25px;
+                    padding: 15px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                }
+                .info-row {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 8px;
+                    padding: 5px 0;
+                    border-bottom: 1px dotted #ccc;
+                }
+                .info-label {
+                    font-weight: bold;
+                    color: #333;
+                }
+                .info-value {
+                    color: #666;
+                }
+                .items-section {
+                    margin-bottom: 25px;
+                }
+                .items-title {
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 15px;
+                    border-bottom: 1px solid #ddd;
+                    padding-bottom: 5px;
+                }
+                .item {
+                    padding: 8px 15px;
+                    margin: 5px 0;
+                    background: #e0f2fe;
+                    border-left: 4px solid #0ea5e9;
+                    border-radius: 4px;
+                }
+                .footer {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #ddd;
+                    text-align: center;
+                    color: #666;
+                    font-size: 12px;
+                }
+                .signature-section {
+                    margin-top: 50px;
+                    display: flex;
+                    justify-content: space-between;
+                }
+                .signature-box {
+                    text-align: center;
+                    width: 200px;
+                }
+                .signature-line {
+                    border-bottom: 1px solid #333;
+                    margin-bottom: 5px;
+                    height: 40px;
+                }
+                @media print {
+                    body { margin: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="receipt-title">RELIEF GOODS DELIVERY RECEIPT</div>
+                <div class="receipt-subtitle">Municipal Social Welfare and Development Office</div>
+            </div>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">Receipt ID:</span>
+                    <span class="info-value">${deliveryId.substring(0, 8).toUpperCase()}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Barangay:</span>
+                    <span class="info-value">${barangayName}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Delivery Date:</span>
+                    <span class="info-value">${deliveryDate.toLocaleDateString()}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Received Date:</span>
+                    <span class="info-value">${receivedDate.toLocaleDateString()}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value">${deliveryData.status || 'Pending'}</span>
+                </div>
+            </div>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">Description:</span>
+                </div>
+                <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
+                    ${deliveryData.details || 'No description provided'}
+                </div>
+            </div>
+            
+            <div class="items-section">
+                <div class="items-title">Items Received</div>
+                ${goodsList.length > 0 ? 
+                    goodsList.map(item => `<div class="item">• ${item}</div>`).join('') : 
+                    '<div class="item">No specific items listed</div>'
+                }
+            </div>
+            
+            <div class="signature-section">
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div>MSWD Representative</div>
+                    <div style="font-size: 11px; color: #999;">Signature over Printed Name</div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div>Barangay Representative</div>
+                    <div style="font-size: 11px; color: #999;">Signature over Printed Name</div>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>This is an official receipt for relief goods delivery.</p>
+                <p>Generated on ${new Date().toLocaleString()}</p>
+                <p>Keep this receipt for your records.</p>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    // Open in new window and print
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
+    
+    // Wait for content to load then print
+    printWindow.onload = function() {
+        setTimeout(() => {
+            printWindow.print();
+        }, 500);
+    };
 }
 
 // Expose functions globally
@@ -2537,4 +3014,7 @@ window.generateSummaryReport = generateSummaryReport;
 window.showDeliveryHistory = showDeliveryHistory;
 window.handleScheduleDelivery = handleScheduleDelivery;
 window.updateDeliveryStatus = updateDeliveryStatus;
+window.toggleDeliveryDetails = toggleDeliveryDetails;
+window.toggleBarangayDeliveryDetails = toggleBarangayDeliveryDetails;
+window.printBarangayDeliveryReceipt = printBarangayDeliveryReceipt;
 
