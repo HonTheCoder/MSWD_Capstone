@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() { return request.auth != null; }
+    function isMSWD() { return isAuthenticated() && request.auth.token.role == 'mswd'; }
+    function isBarangay() { return isAuthenticated() && request.auth.token.role == 'barangay'; }
+
+    match /users/{userId} {
+      allow read: if isMSWD() || (isBarangay() && request.auth.uid == resource.data.uid);
+      allow write: if false;
+    }
+
+    match /residents/{doc} {
+      allow read: if isMSWD() || (isBarangay() && resource.data.barangay == request.auth.token.barangay);
+      allow create, update, delete: if isMSWD() || (isBarangay() && request.resource.data.barangay == request.auth.token.barangay);
+    }
+
+    match /deliveries/{doc} {
+      allow read: if isMSWD() || (isBarangay() && resource.data.barangay == request.auth.token.barangay);
+      allow create, update, delete: if isMSWD();
+      allow update: if isBarangay() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','updatedAt']) && resource.data.barangay == request.auth.token.barangay;
+    }
+
+    match /inventory/{doc} {
+      allow read, write: if isMSWD();
+    }
+
+    match /inventory_logs/{doc} {
+      allow read, write: if isMSWD();
+      allow read: if isBarangay();
+    }
+
+    match /inventory_batches/{doc} {
+      allow read, write: if isMSWD();
+      allow read: if isBarangay();
+    }
+
+    match /accountRequests/{doc} {
+      allow create: if true;
+      allow read, update, delete: if isMSWD();
+    }
+  }
+}

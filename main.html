@@ -17,6 +17,146 @@
     <!-- For Android/Chrome -->
     <link rel="icon" type="image/png" sizes="192x192" href="image/android-chrome-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="image/android-chrome-512x512.png">
+    <style>
+    /* Professional table styling */
+    .table-container table, .enhanced-residents-table table, #goodsTotalsTable, #adminDeliveriesTable, #barangayTable {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .table-container th, .table-container td,
+    .enhanced-residents-table th, .enhanced-residents-table td,
+    #goodsTotalsTable th, #goodsTotalsTable td,
+    #adminDeliveriesTable th, #adminDeliveriesTable td,
+    #barangayTable th, #barangayTable td {
+        border: 1px solid #d1d5db;
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+    .table-container th, .enhanced-residents-table th, #goodsTotalsTable th, #adminDeliveriesTable th, #barangayTable th {
+        background: #f3f4f6;
+        color: #1f2937;
+        text-align: left;
+    }
+    .table-container tbody tr:nth-child(even), .enhanced-residents-table tbody tr:nth-child(even) {
+        background: #fafafa;
+    }
+
+    /* New inventory management styles */
+    .section-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .action-button {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        color: #334155;
+    }
+    
+    .action-button:hover {
+        background: #e2e8f0;
+        border-color: #cbd5e1;
+        transform: translateY(-1px);
+    }
+    
+    .action-button.primary-btn {
+        background: #3b82f6;
+        color: white;
+        border-color: #2563eb;
+    }
+    
+    .action-button.primary-btn:hover {
+        background: #2563eb;
+        border-color: #1d4ed8;
+    }
+    
+    .filter-controls {
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .filter-controls input, .filter-controls select {
+        padding: 6px 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .status-badge {
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+    
+    .status-received { background: #dcfce7; color: #166534; }
+    .status-delivered { background: #dbeafe; color: #1e40af; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    
+    .receive-btn {
+        background: #10b981;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+    
+    .receive-btn:hover {
+        background: #059669;
+    }
+    
+    .status-btn {
+        background: #6b7280;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        cursor: not-allowed;
+        font-size: 12px;
+        opacity: 0.7;
+    }
+    
+    .action-button:disabled, .receive-btn:disabled, button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .action-button:disabled:hover, .receive-btn:disabled:hover {
+        transform: none;
+        background: #6b7280;
+    }
+    
+    /* Print-friendly styles */
+    @media print {
+        body { color: #000; }
+        .sidebar, .mobile-header, .section-actions, .action-cell, .action-button, .delete-btn, .edit-btn, .close, .mobile-nav-toggle,
+        .filter-controls, .search-filter-section, .export-btn, .print-btn, .btn, .buttons-html5, .buttons-print { display: none !important; }
+        .modal { position: static !important; }
+        .modal-content { box-shadow: none !important; border: none !important; }
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        @page { margin: 12mm; }
+    }
+    </style>
 </head>
 <body>
     <!-- Skip Link for Accessibility -->
@@ -114,6 +254,7 @@
                 <li class="mswd-only"><a href="#" onclick="showSection('barangayManagement')">Manage Barangays</a></li>
                 <li class="mswd-only"><a href="#" onclick="showSection('accountRequests')">Account Requests</a></li>
                 <li class="mswd-only"><a href="#" onclick="showSection('deliveryScheduling')">Delivery Scheduling</a></li>
+                <li class="mswd-only"><a href="#" onclick="showSection('trackGoods')">Track Relief Goods</a></li>
                 <li class="barangay-only"><a href="#" onclick="showSection('residentManagement')">Manage Residents</a></li>
                 <li class="barangay-only"><a href="#" onclick="showSection('deliveryStatus')">Delivery Status</a></li>
                 <li><a href="javascript:void(0)" onclick="showSection('statistics')">Priority Statistics</a></li>
@@ -139,6 +280,113 @@
                 </div>
             </div>
 
+            <!-- MSWD: Track Relief Goods Section -->
+            <div id="trackGoods" class="section hidden">
+                <div class="section-header">
+                    <h2>📦 Track Relief Goods</h2>
+                    <div class="section-actions">
+                        <button id="historyBtn" class="action-button">
+                            <span class="material-icons">history</span>
+                            <span class="btn-text">History</span>
+                        </button>
+                        <button id="newBatchBtn" class="action-button primary-btn">
+                            <span class="material-icons">refresh</span>
+                            <span class="btn-text">New Relief Operation</span>
+                        </button>
+                        <button id="summaryBtn" class="action-button">
+                            <span class="material-icons">summarize</span>
+                            <span class="btn-text">Summary Report</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Update Inventory</h3>
+                        <p>Add received goods to inventory. Totals update automatically.</p>
+                    </div>
+                    <form id="goodsForm" class="enhanced-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Rice (sacks)</label>
+                                <input type="number" id="invRice" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Biscuits (boxes)</label>
+                                <input type="number" id="invBiscuits" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Canned Goods (boxes)</label>
+                                <input type="number" id="invCanned" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Shirts (packs)</label>
+                                <input type="number" id="invShirts" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="btn-icon">➕</span>
+                                <span>Add to Inventory</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Current Totals</h3>
+                    </div>
+                    <div class="table-container mobile-table">
+                        <table id="goodsTotalsTable">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Rice (sacks)</td><td id="totalRice">0</td></tr>
+                                <tr><td>Biscuits (boxes)</td><td id="totalBiscuits">0</td></tr>
+                                <tr><td>Canned Goods (boxes)</td><td id="totalCanned">0</td></tr>
+                                <tr><td>Shirts (packs)</td><td id="totalShirts">0</td></tr>
+                                <tr><td><strong>Overall Total</strong></td><td id="totalOverall">0</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Inventory History Modal -->
+                <div id="historyModal" class="modal hidden">
+                    <div class="modal-content" style="max-width: 960px;">
+                        <div class="modal-header">
+                            <h2>Inventory History</h2>
+                            <span class="close" onclick="document.getElementById('historyModal').classList.add('hidden')">&times;</span>
+                        </div>
+                        <div class="filter-controls" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                            <label>Batch:</label>
+                            <select id="historyBatchSelect"></select>
+                            <input id="historySearch" placeholder="Search item/user/txn" />
+                        </div>
+                        <div class="table-container mobile-table">
+                            <table id="inventoryHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Type</th>
+                                        <th>Item</th>
+                                        <th>Qty</th>
+                                        <th>User</th>
+                                        <th>Transaction ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventoryHistoryBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
             <div id="accountRequests" class="section hidden">
                 <div class="section-header">
                     <h2>Account Requests</h2>
@@ -152,7 +400,7 @@
                                     <th>Username</th>
                                     <th>Role</th>
                                     <th>Date Requested</th>
-                                    <th>Action</th>
+                                    <th class="no-export">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="requestsTableBody"></tbody>
@@ -198,10 +446,12 @@
                                     <th>Age</th>
                                     <th>Address Zone</th>
                                     <th>Household No</th>
+                                    <th>Gender</th>
+                                    <th>Household Status</th>
                                     <th>Family Members</th>
-                                    <th>Status</th>
                                     <th>Monthly Income</th>
                                     <th>Aid History</th>
+                                    <th>Remarks</th>
                                     <th>Evacuee History</th>
                                     <th>Action</th>
                                 </tr>
@@ -243,6 +493,27 @@
                         </div>
 
                         <div class="form-row">
+                            <div class="form-group">
+                                <label for="gender">Gender:</label>
+                                <select id="gender" required>
+                                    <option value="" disabled selected>Select gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="householdStatus">Household Status:</label>
+                                <select id="householdStatus" required>
+                                    <option value="" disabled selected>Select status</option>
+                                    <option value="Poor">Poor</option>
+                                    <option value="Mid">Mid</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-group checkbox-group">
                                 <label for="student">Student:</label>
                                 <input type="checkbox" id="student">
@@ -261,6 +532,13 @@
                             <div class="form-group">
                                 <label for="familyMembers">Family Members:</label>
                                 <input type="number" id="familyMembers" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1;">
+                                <label for="remarks">Remarks:</label>
+                                <textarea id="remarks" placeholder="Notes about this person"></textarea>
                             </div>
                         </div>
 
@@ -322,6 +600,25 @@
                         </div>
 
                         <div class="form-row">
+                            <div class="form-group">
+                                <label for="editGender">Gender:</label>
+                                <select id="editGender" required>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="editHouseholdStatus">Household Status:</label>
+                                <select id="editHouseholdStatus" required>
+                                    <option value="Poor">Poor</option>
+                                    <option value="Mid">Mid</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-group checkbox-group">
                                 <label for="editStudent">Student:</label>
                                 <input type="checkbox" id="editStudent">
@@ -354,6 +651,13 @@
                             </div>
                         </div>
 
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1;">
+                                <label for="editRemarks">Remarks:</label>
+                                <textarea id="editRemarks" placeholder="Notes about this person"></textarea>
+                            </div>
+                        </div>
+
                         <div class="form-actions">
                             <button type="submit" class="submit-btn">
                                 <span class="material-icons">update</span>
@@ -374,9 +678,17 @@
                     <div class="section-header">
                         <h2>Barangay Priority Statistics</h2>
                         <div class="section-actions">
-                            <button id="exportBarangayCSVBtn" class="export-btn">
+                            <button id="exportBarangayExcelBtn" class="export-btn">
                                 <span class="material-icons">download</span>
-                                <span class="btn-text">Export CSV</span>
+                                <span class="btn-text">Export Excel</span>
+                            </button>
+                            <button id="exportBarangayPDFBtn" class="export-btn">
+                                <span class="material-icons">picture_as_pdf</span>
+                                <span class="btn-text">Export PDF</span>
+                            </button>
+                            <button id="printBarangayStatsBtn" class="export-btn">
+                                <span class="material-icons">print</span>
+                                <span class="btn-text">Print</span>
                             </button>
                         </div>
                     </div>
@@ -394,9 +706,17 @@
                     <div class="section-header">
                         <h2>Resident Priority Statistics</h2>
                         <div class="section-actions">
-                            <button id="exportResidentCSVBtn" class="export-btn">
+                            <button id="exportResidentExcelBtn" class="export-btn">
                                 <span class="material-icons">download</span>
-                                <span class="btn-text">Export CSV</span>
+                                <span class="btn-text">Export Excel</span>
+                            </button>
+                            <button id="exportResidentPDFBtn" class="export-btn">
+                                <span class="material-icons">picture_as_pdf</span>
+                                <span class="btn-text">Export PDF</span>
+                            </button>
+                            <button id="printResidentStatsBtn" class="export-btn">
+                                <span class="material-icons">print</span>
+                                <span class="btn-text">Print</span>
                             </button>
                         </div>
                     </div>
@@ -463,6 +783,24 @@
                                 placeholder="Enter delivery details (e.g., Canned goods, rice, water, medical supplies...)"
                             ></textarea>
                         </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Rice (sacks)</label>
+                                <input type="number" id="goodsRice" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Biscuits (boxes)</label>
+                                <input type="number" id="goodsBiscuits" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Canned Goods (boxes)</label>
+                                <input type="number" id="goodsCanned" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Shirts (packs)</label>
+                                <input type="number" id="goodsShirts" min="0" value="0">
+                            </div>
+                        </div>
                         
                         <div class="form-actions">
                             <button type="submit" class="submit-btn">
@@ -482,8 +820,7 @@
                     
                     <!-- Search and Filter Section -->
                     <div class="search-filter-section">
-                        <div class="search-box">
-                            <span class="search-icon">🔍</span>
+                        <div class="search-box">                          >
                             <input 
                                 type="text" 
                                 id="deliverySearchInput" 
@@ -566,7 +903,14 @@
             <div id="deliveryStatus" class="section hidden">
                 <div class="section-header">
                     <h2>Delivery Status</h2>
+                    <div class="section-actions">
+                        <button id="viewDeliveryHistoryBtn" class="action-button">
+                            <span class="material-icons">history</span>
+                            <span class="btn-text">Delivery History</span>
+                        </button>
+                    </div>
                 </div>
+                
                 <div class="card">
                     <h3>Scheduled Deliveries</h3>
                     <div class="table-container mobile-table">
@@ -583,6 +927,30 @@
                         </table>
                     </div>
                 </div>
+                
+                <!-- Delivery History Modal -->
+                <div id="deliveryHistoryModal" class="modal hidden">
+                    <div class="modal-content" style="max-width: 960px;">
+                        <div class="modal-header">
+                            <h2>Delivery History</h2>
+                            <span class="close" onclick="document.getElementById('deliveryHistoryModal').classList.add('hidden')">&times;</span>
+                        </div>
+                        <div class="table-container mobile-table">
+                            <table id="deliveryHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Details</th>
+                                        <th>Items Received</th>
+                                        <th>Status</th>
+                                        <th>Received At</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deliveryHistoryBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ✅ Enhanced View Residents Modal -->
@@ -590,13 +958,14 @@
                 <div class="modal-content residents-modal-content">
                     <div class="modal-header">
                         <h2 id="viewResidentsTitle">🏘️ Residents</h2>
-                        <span class="close" onclick="closeViewResidentsModal()">&times;</span>
+                        <div class="modal-actions">
+                            <span class="close" onclick="closeViewResidentsModal()">&times;</span>
+                        </div>
                     </div>
                     
                     <div class="modal-body">
                         <div class="search-section">
                             <div class="search-box">
-                                <span class="search-icon">🔍</span>
                                 <input 
                                     type="text" 
                                     id="residentSearchInput" 
@@ -607,6 +976,7 @@
                                 <span class="info-icon">ℹ️</span>
                                 <span class="info-text">Type to search through all resident information</span>
                             </div>
+                            
                         </div>
                         
                         <div class="table-container enhanced-residents-table">
@@ -618,9 +988,12 @@
                                             <th class="age-col">Age</th>
                                             <th class="address-col">Address Zone</th>
                                             <th class="household-col">Household No</th>
+                                            <th class="gender-col">Gender</th>
+                                            <th class="status-col">Household Status</th>
                                             <th class="family-col">Family Members</th>
                                             <th class="income-col">Monthly Income</th>
                                             <th class="aid-col">Aid History</th>
+                                            <th class="remarks-col">Remarks</th>
                                             <th class="evacuee-col">Evacuee History</th>
                                             <th class="status-col">Status</th>
                                         </tr>
@@ -678,10 +1051,22 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- DataTables & dependencies -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
     <script type="module" src="./firebase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
     <script src="chart.js"></script>
     <script type="module" src="app.js"></script>
+    <script src="statistics.js"></script>
 
     <!-- ✅ Global Message Modal -->
     <div id="messageModal" class="modal hidden">

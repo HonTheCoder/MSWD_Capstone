@@ -31,6 +31,9 @@ function closeMessageModal() {
     if (modal) modal.classList.add("hidden");
 }
 
+// Expose for inline onclick in main.html
+window.closeMessageModal = closeMessageModal;
+
 document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("messageOkBtn");
     if (btn) {
@@ -60,13 +63,63 @@ import {
     createUserInFirestore,
     fetchSignInMethodsForEmail,
     addResidentToFirestore,
-    changePassword
+    changePassword,
+    updateInventoryTransaction,
+    addInventory,
+    getInventoryTotals,
+    getActiveBatch,
+    startNewBatch,
+    logInventoryTransaction,
+    getInventoryLogs,
+    markDeliveryDeducted,
+    isDeliveryDeducted,
+    getDeliveries
 } from './firebase.js';
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { onSnapshot, runTransaction, Timestamp, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 let loggedInUserData = null; //(GLOBAL VARIABLE)
+
+// Lightweight global app registry for listeners and dynamic assets
+window.App = window.App || {
+    currentSection: null,
+    listeners: new Map(),
+    addListener(sectionKey, unsubscribe) {
+        if (!unsubscribe) return;
+        const arr = this.listeners.get(sectionKey) || [];
+        arr.push(unsubscribe);
+        this.listeners.set(sectionKey, arr);
+    },
+    clearListeners(sectionKey) {
+        const arr = this.listeners.get(sectionKey) || [];
+        arr.forEach(unsub => { try { unsub(); } catch(_) {} });
+        this.listeners.delete(sectionKey);
+    },
+    clearAll() {
+        for (const key of Array.from(this.listeners.keys())) this.clearListeners(key);
+    }
+};
+
+async function ensureDataTables() {
+    // If jQuery & DataTables present, return
+    if (window.jQuery && window.jQuery.fn && window.jQuery.fn.dataTable) return;
+    // Try to load from CDN if not present
+    const loadScript = (src) => new Promise((res, rej) => { const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+    const loadCss = (href) => { const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; document.head.appendChild(l); };
+    try {
+        loadCss('https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css');
+        loadCss('https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css');
+        if (!window.jQuery) await loadScript('https://code.jquery.com/jquery-3.7.1.min.js');
+        await loadScript('https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js');
+        await loadScript('https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js');
+        await loadScript('https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js');
+        await loadScript('https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js');
+    } catch (e) { console.warn('Failed to lazy-load DataTables', e); }
+}
 
 // ✅ Auto login persist
 onAuthStateChanged(auth, async (user) => {
@@ -127,33 +180,40 @@ async function initializeDefaultAdmin() {
     }
 }
 
+// Centralized auth error mapping
+function mapAuthError(err) {
+    const code = err && err.code;
+    switch (code) {
+        case 'auth/invalid-credential':
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+            return 'Invalid username or password. Please try again.';
+        case 'auth/too-many-requests':
+            return 'Too many failed attempts. Please wait and try again.';
+        case 'auth/network-request-failed':
+            return 'Network error. Check your connection and try again.';
+        case 'auth/requires-recent-login':
+            return 'Please log out and log back in, then retry.';
+        case 'auth/weak-password':
+            return 'New password is too weak. Choose a stronger one.';
+        default:
+            return 'An unexpected error occurred. Please try again.';
+    }
+}
+
 async function handleLogin(event) {
     event.preventDefault();
-    const username = document.getElementById('username')?.value?.trim();
+    const raw = document.getElementById('username')?.value || '';
+    const normalized = raw.trim().toLowerCase().replace(/\s+/g, '');
     const password = document.getElementById('password')?.value;
 
-    const barangayName = username.replace('barangay_', '');
+    const barangayName = normalized.replace('barangay_', '');
     const email = `${barangayName}@example.com`;
 
     try {
         await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-        let userFriendlyMessage = "Invalid username or password. Please try again.";
-        
-        // Handle specific Firebase error codes with user-friendly messages
-        if (error.code === 'auth/invalid-credential') {
-            userFriendlyMessage = "Invalid username or password. Please try again.";
-        } else if (error.code === 'auth/user-not-found') {
-            userFriendlyMessage = "Username not found. Please check your username and try again.";
-        } else if (error.code === 'auth/wrong-password') {
-            userFriendlyMessage = "Incorrect password. Please try again.";
-        } else if (error.code === 'auth/too-many-requests') {
-            userFriendlyMessage = "Too many failed attempts. Please wait a moment and try again.";
-        } else if (error.code === 'auth/network-request-failed') {
-            userFriendlyMessage = "Network error. Please check your connection and try again.";
-        }
-        
-        showError(userFriendlyMessage);
+        showError(mapAuthError(error));
     }
 }
 
@@ -189,15 +249,27 @@ async function loadAccountRequests() {
     const tableBody = document.getElementById("requestsTableBody");
     tableBody.innerHTML = "";
     requests.forEach(req => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${req.barangayName}</td>
-            <td>Barangay</td>
-            <td>${new Date(req.timestamp.seconds * 1000).toLocaleDateString()}</td>
-            <td>
-                <button onclick="approveRequest('${req.id}', '${req.barangayName}')">Approve</button>
-                <button onclick="declineRequest('${req.id}')">Decline</button>
-            </td>`;
+        const row = document.createElement('tr');
+        const tdName = document.createElement('td');
+        tdName.textContent = String(req.barangayName || '');
+        const tdRole = document.createElement('td');
+        tdRole.textContent = 'Barangay';
+        const tdDate = document.createElement('td');
+        const ts = req.timestamp && (req.timestamp.seconds ? new Date(req.timestamp.seconds * 1000) : new Date());
+        tdDate.textContent = ts ? ts.toLocaleDateString() : '';
+        const tdAction = document.createElement('td');
+        const approveBtn = document.createElement('button');
+        approveBtn.textContent = 'Approve';
+        approveBtn.addEventListener('click', () => window.approveRequest(req.id, req.barangayName));
+        const declineBtn = document.createElement('button');
+        declineBtn.textContent = 'Decline';
+        declineBtn.addEventListener('click', () => window.declineRequest(req.id));
+        tdAction.appendChild(approveBtn);
+        tdAction.appendChild(declineBtn);
+        row.appendChild(tdName);
+        row.appendChild(tdRole);
+        row.appendChild(tdDate);
+        row.appendChild(tdAction);
         tableBody.appendChild(row);
     });
 }
@@ -271,12 +343,19 @@ async function loadBarangaysFromFirebase() {
                 const residentsSnap = await getDocs(residentsQ);
                 const residentCount = residentsSnap.size;
 
-                const row = `<tr>
-                    <td>${barangayName}</td>
-                    <td>${residentCount}</td>
-                    <td><button class="view-residents-btn" data-id="${docSnap.id}" data-bname="${barangayName}" onclick="viewBarangay('${docSnap.id}', '${barangayName}')">View</button></td>
-                </tr>`;
-                tableBody.innerHTML += row;
+                const tr = document.createElement('tr');
+                const tdB = document.createElement('td'); tdB.textContent = barangayName;
+                const tdCount = document.createElement('td'); tdCount.textContent = String(residentCount);
+                const tdAct = document.createElement('td');
+                const btn = document.createElement('button');
+                btn.className = 'view-residents-btn';
+                btn.setAttribute('data-id', docSnap.id);
+                btn.setAttribute('data-bname', barangayName);
+                btn.textContent = 'View';
+                btn.addEventListener('click', () => window.viewBarangay(docSnap.id, barangayName));
+                tdAct.appendChild(btn);
+                tr.appendChild(tdB); tr.appendChild(tdCount); tr.appendChild(tdAct);
+                tableBody.appendChild(tr);
             }
         }
     });
@@ -295,86 +374,7 @@ async function loadBarangaysFromFirebase() {
 
 // ✅ Handle Viewing Barangay Residents
 // ✅ View Residents Modal with Search Filter
-window.viewBarangay = async function (barangayId, barangayName) {
-    console.log('[viewBarangay] Open modal for', barangayName, 'id:', barangayId);
-    const modalEl = document.getElementById("viewResidentsModal");
-    if (!modalEl) {
-        console.error('[viewBarangay] viewResidentsModal not found');
-        return;
-    }
-    // Ensure modal is top-level to avoid stacking contexts
-    if (modalEl.parentElement !== document.body) {
-        document.body.appendChild(modalEl);
-        console.log('[viewBarangay] Moved modal to <body>');
-    }
-    modalEl.classList.remove("hidden");
-    modalEl.style.display = "flex";
-    modalEl.style.opacity = "1";
-    modalEl.style.pointerEvents = "auto";
-    modalEl.style.zIndex = "100000";
-    const cs = window.getComputedStyle(modalEl);
-    console.log('[viewBarangay] modal style => display:', cs.display, 'opacity:', cs.opacity, 'z-index:', cs.zIndex);
-    document.getElementById("viewResidentsTitle").innerText = "Residents of " + barangayName;
-
-    const tableBody = document.getElementById("viewResidentsTableBody");
-    const searchInput = document.getElementById("residentSearchInput");
-    tableBody.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
-
-    try {
-        const residentsRef = collection(db, "residents");
-        const q = query(residentsRef, where("barangay", "==", barangayName));
-        const snapshot = await getDocs(q);
-
-        let residents = [];
-        if (!snapshot.empty) {
-            residents = snapshot.docs.map((docSnap) => docSnap.data());
-        }
-
-        function renderResidents(filter = "") {
-            const filtered = residents.filter(r => {
-                const name = (r.name || '').toLowerCase();
-                return name.includes(filter.toLowerCase()) ||
-                    (r.householdNumber && r.householdNumber.toString().includes(filter));
-            });
-
-            if (filtered.length === 0) {
-                tableBody.innerHTML = "<tr><td colspan='5'>No matching residents found</td></tr>";
-                return;
-            }
-
-            tableBody.innerHTML = "";
-            filtered.forEach((r) => {
-                const row = `
-            <tr>
-                <td>${r.name}</td>
-                <td>${r.age}</td>
-                <td>${r.addressZone}</td>
-                <td>${r.householdNumber}</td>
-                <td>${r.familyMembers}</td>
-                <td>${r.monthlyIncome ?? ''}</td>
-                <td>${r.aidHistory ?? ''}</td>
-                <td>${r.evacueeHistory ?? ''}</td>
-            </tr>
-        `;
-                tableBody.innerHTML += row;
-            });
-        }
-
-        // Initial render
-        renderResidents();
-        searchInput.oninput = () => renderResidents(searchInput.value);
-
-    } catch (error) {
-        console.error("Error fetching residents:", error);
-        tableBody.innerHTML = "<tr><td colspan='5'>Error loading residents</td></tr>";
-    }
-};
-
-window.closeViewResidentsModal = function () {
-    const modalEl = document.getElementById("viewResidentsModal");
-    modalEl.classList.add("hidden");
-    modalEl.style.display = "none";
-};
+// (Removed duplicate window.viewBarangay; unified implementation is defined later)
 
 // Function to schedule a delivery
 async function loadBarangayDropdown() {
@@ -417,11 +417,11 @@ function loadBarangayDeliveries(barangay) {
         console.warn("[Barangay Deliveries] Table body not found.");
         return;
     }
-
     const deliveriesRef = collection(db, "deliveries");
     const q = query(deliveriesRef, where("barangay", "==", barangay));
 
-    onSnapshot(q, (snapshot) => {
+    if (window._unsubDeliveries) { try { window._unsubDeliveries(); } catch(_) {} }
+    const unsub = onSnapshot(q, (snapshot) => {
         tableBody.innerHTML = "";
         if (snapshot.empty) {
             tableBody.innerHTML = `
@@ -433,36 +433,99 @@ function loadBarangayDeliveries(barangay) {
 
         snapshot.forEach((docSnap) => {
             const d = docSnap.data();
-            const row = document.createElement("tr");
-
+            const row = document.createElement('tr');
             const deliveryDate = d.deliveryDate?.toDate?.();
-            const dateStr = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
-
-            row.innerHTML = `
-                <td>${dateStr}</td>
-                <td>${d.details || ""}</td>
-                <td>${d.status || "Pending"}</td>
-                <td>
-                    <button onclick="updateDeliveryStatus('${docSnap.id}', 'Received')">Mark Received</button>
-                </td>
-            `;
-
+            const dateStr = deliveryDate ? deliveryDate.toLocaleDateString() : 'No Date';
+            const tds = [dateStr, d.details || '', d.status || 'Pending'];
+            tds.forEach(text => { const td = document.createElement('td'); td.textContent = String(text); row.appendChild(td); });
+            const tdBtn = document.createElement('td');
+            const btn = document.createElement('button');
+            if (d.status === 'Pending') {
+                btn.textContent = 'Received';
+                btn.className = 'receive-btn';
+                // Add double-click prevention
+                let isProcessing = false;
+                btn.addEventListener('click', async () => {
+                    if (isProcessing) return;
+                    isProcessing = true;
+                    btn.disabled = true;
+                    btn.textContent = 'Processing...';
+                    try {
+                        await updateDeliveryStatus(docSnap.id, 'Received');
+                    } finally {
+                        // Button will be replaced by new render, but just in case:
+                        setTimeout(() => {
+                            isProcessing = false;
+                            btn.disabled = false;
+                            btn.textContent = 'Received';
+                        }, 1000);
+                    }
+                });
+            } else {
+                btn.textContent = d.status || 'Unknown';
+                btn.disabled = true;
+                btn.className = 'status-btn';
+            }
+            tdBtn.appendChild(btn);
+            row.appendChild(tdBtn);
             tableBody.appendChild(row);
         });
     });
+    window._unsubDeliveries = unsub;
+    window.App.addListener('deliveryStatus', unsub);
 }
 
 // Function to update delivery status
 async function updateDeliveryStatus(deliveryId, newStatus) {
     try {
+        // Get delivery data first
         const deliveryRef = doc(db, "deliveries", deliveryId);
+        const deliverySnap = await getDoc(deliveryRef);
+        const deliveryData = deliverySnap.data();
+        
         await updateDoc(deliveryRef, {
             status: newStatus,
             updatedAt: new Date()
         });
         
+        // If marking as "Received" (goods actually delivered) and not already deducted, deduct inventory
+        if (newStatus === 'Received' && deliveryData?.goods && !(await isDeliveryDeducted(deliveryId))) {
+            try {
+                await updateInventoryTransaction({
+                    rice: -Number(deliveryData.goods.rice || 0),
+                    biscuits: -Number(deliveryData.goods.biscuits || 0),
+                    canned: -Number(deliveryData.goods.canned || 0),
+                    shirts: -Number(deliveryData.goods.shirts || 0)
+                });
+                
+                // Mark as deducted and log transaction
+                await markDeliveryDeducted(deliveryId);
+                await logInventoryTransaction({
+                    action: 'delivery',
+                    type: 'deduction',
+                    deliveryId,
+                    barangay: deliveryData.barangay?.replace('barangay_', '') || 'Unknown',
+                    items: deliveryData.goods,
+                    user: loggedInUserData?.username || 'System',
+                    description: `Delivery to ${deliveryData.barangay?.replace('barangay_', '') || 'Unknown'}`
+                });
+                
+                console.log(`Inventory deducted for delivery ${deliveryId}`);
+                showSuccess(`Delivery marked as received. Inventory has been automatically updated.`);
+                return; // Exit early since we already showed success message
+            } catch (inventoryError) {
+                console.error('Inventory deduction failed:', inventoryError);
+                if (inventoryError.message === 'INSUFFICIENT_INVENTORY') {
+                    showError('Insufficient inventory for this delivery. Please add stock first.');
+                    return;
+                }
+            }
+        }
+        
         console.log(`Delivery ${deliveryId} status updated to ${newStatus}`);
-        showSuccess(`Delivery status updated to ${newStatus}`);
+        if (newStatus !== 'Received') {
+            showSuccess(`Delivery status updated to ${newStatus}`);
+        }
         
         // Refresh the deliveries table to show updated status
         const currentUser = auth.currentUser;
@@ -477,6 +540,11 @@ async function updateDeliveryStatus(deliveryId, newStatus) {
                 }
             }
         }
+        
+        // Refresh inventory totals if available
+        if (typeof window.refreshInventoryTotals === 'function') {
+            await window.refreshInventoryTotals();
+        }
     } catch (error) {
         console.error("Error updating delivery status:", error);
         showError("Failed to update delivery status. Please try again.");
@@ -484,47 +552,44 @@ async function updateDeliveryStatus(deliveryId, newStatus) {
 }
 
 // Function to handle scheduling deliveries
-function handleScheduleDelivery() {
+async function handleScheduleDelivery() {
     // Get form values
     const barangay = document.getElementById("barangaySelect").value;
     const deliveryDate = document.getElementById("deliveryDate").value;
     const deliveryDetails = document.getElementById("deliveryDetails").value;
 
-    // Add your logic here
-    console.log("Scheduled delivery for barangay:", barangay);
-    console.log("Date:", deliveryDate);
-    console.log("Details:", deliveryDetails);
+    const goods = {
+        rice: Number(document.getElementById('goodsRice')?.value || 0),
+        biscuits: Number(document.getElementById('goodsBiscuits')?.value || 0),
+        canned: Number(document.getElementById('goodsCanned')?.value || 0),
+        shirts: Number(document.getElementById('goodsShirts')?.value || 0),
+    };
 
-    // **Add the delivery to Firestore**
-    if (barangay && deliveryDate && deliveryDetails) {
-        // Get the reference to Firestore collection
-        const deliveriesRef = collection(db, "deliveries");
-
-        // Create a new document for the delivery
-        addDoc(deliveriesRef, {
-            barangay: barangay, // ✅ keep this
-            deliveryDate: new Date(deliveryDate), // ✅ this fixes the problem!
-            details: deliveryDetails,
-            status: "Pending",
-            timestamp: new Date()
-        })       
-        .then(() => {
-            // Successfully added the document
-            console.log("Delivery scheduled successfully!");
-
-            // Optionally show a success message in the UI
-            document.getElementById("successMessage").innerText = "Delivery scheduled successfully!";
-            document.getElementById("successMessage").classList.remove("hidden");
-
-            // Optionally reset the form (if needed)
-            document.getElementById("scheduleDeliveryForm").reset();
-        })
-        .catch((error) => {
-            console.error("Error scheduling delivery:", error);
-            showError("Failed to schedule delivery. Please try again.");
-        });
-    } else {
+    if (!barangay || !deliveryDate || !deliveryDetails) {
         showError("All fields are required!");
+        return;
+    }
+
+    try {
+        // Save delivery with goods
+        await addDoc(collection(db, 'deliveries'), {
+            barangay,
+            deliveryDate: Timestamp.fromDate(new Date(deliveryDate)),
+            details: deliveryDetails,
+            goods,
+            status: 'Pending',
+            timestamp: serverTimestamp()
+        });
+        
+        // NOTE: Inventory will be deducted when delivery is marked as 'Received'
+        showSuccess('Delivery scheduled successfully.');
+        // Reset form
+        document.getElementById('deliveryForm')?.reset();
+        
+    } catch (error) {
+        console.error('Error scheduling delivery:', error);
+        showError('Failed to schedule delivery.');
+        throw error; // Re-throw to be handled by the form submission
     }
 }
 
@@ -627,6 +692,7 @@ function renderDeliveries(deliveries) {
             <div class="details-cell">
                 <span class="details-icon">📝</span>
                 <span class="details-text">${delivery.details}</span>
+                ${delivery.rawData?.goods ? `<div class="goods-mini">Rice: ${delivery.rawData.goods.rice||0}, Biscuits: ${delivery.rawData.goods.biscuits||0}, Canned: ${delivery.rawData.goods.canned||0}, Shirts: ${delivery.rawData.goods.shirts||0}</div>` : ''}
             </div>
         `;
         row.appendChild(tdDetails);
@@ -651,6 +717,10 @@ function renderDeliveries(deliveries) {
                 <button class="delete-btn" onclick="deleteDelivery('${delivery.id}')">
                     <span class="btn-icon">🗑️</span>
                     <span class="btn-text">Delete</span>
+                </button>
+                <button class="print-btn" onclick="printDeliveryReceipt('${delivery.id}')">
+                    <span class="btn-icon">🖨️</span>
+                    <span class="btn-text">Print</span>
                 </button>
             </div>
         `;
@@ -791,6 +861,85 @@ async function deleteDelivery(deliveryId) {
 window.clearDeliveryFilters = clearDeliveryFilters;
 window.deleteDelivery = deleteDelivery;
 window.closeViewResidentsModal = closeViewResidentsModal;
+window.printDeliveryReceipt = printDeliveryReceipt;
+// Printable delivery receipt
+async function printDeliveryReceipt(deliveryId) {
+    try {
+        const snap = await getDoc(doc(db, 'deliveries', deliveryId));
+        if (!snap.exists()) { showError('Delivery not found'); return; }
+        const d = snap.data();
+        const title = `Delivery Receipt - ${d.barangay || ''}`;
+        const win = window.open('', '_blank');
+        const now = new Date().toLocaleString();
+        const goods = d.goods || { rice:0, biscuits:0, canned:0, shirts:0 };
+        const style = `
+            <style>
+                body { font-family: Arial, Helvetica, sans-serif; }
+                h1 { font-size: 18px; margin: 0 0 6px; }
+                .meta { font-size: 12px; color:#555; margin-bottom: 12px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+                th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
+                th { background: #f5f5f5; text-align: left; }
+            </style>`;
+        const html = `
+            <h1>${title}</h1>
+            <div class="meta">Printed: ${now}</div>
+            <table>
+                <tr><th>Barangay</th><td>${d.barangay || ''}</td></tr>
+                <tr><th>Date</th><td>${d.deliveryDate?.toDate ? d.deliveryDate.toDate().toLocaleDateString() : new Date(d.deliveryDate).toLocaleDateString()}</td></tr>
+                <tr><th>Details</th><td>${d.details || ''}</td></tr>
+            </table>
+            <h3>Goods</h3>
+            <table>
+                <tr><th>Rice (sacks)</th><td>${goods.rice || 0}</td></tr>
+                <tr><th>Biscuits (boxes)</th><td>${goods.biscuits || 0}</td></tr>
+                <tr><th>Canned Goods (boxes)</th><td>${goods.canned || 0}</td></tr>
+                <tr><th>Shirts (packs)</th><td>${goods.shirts || 0}</td></tr>
+            </table>`;
+        win.document.write(`<html><head><title>${title}</title>${style}</head><body>${html}</body></html>`);
+        win.document.close();
+        win.focus();
+        setTimeout(() => { win.print(); win.close(); }, 200);
+    } catch (e) {
+        console.error(e);
+        showError('Failed to print receipt.');
+    }
+}
+
+// Generic print helper for residents tables (MSWD modal and Barangay table)
+function printResidents(tableId, title = 'Residents') {
+    try {
+        const table = document.getElementById(tableId);
+        if (!table) { showError('Residents table not found.'); return; }
+
+        const win = window.open('', '_blank');
+        if (!win) { showError('Popup blocked. Allow popups to print.'); return; }
+
+        const now = new Date().toLocaleString();
+        const style = `
+            <style>
+                body { font-family: Arial, Helvetica, sans-serif; color: #111; }
+                h1 { font-size: 18px; margin: 0 0 8px; }
+                .meta { font-size: 12px; margin-bottom: 12px; color: #555; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
+                th { background: #f5f5f5; text-align: left; }
+                @media print { @page { size: A4 landscape; margin: 10mm; } }
+            </style>`;
+
+        const headerHtml = `<h1>${title}</h1><div class="meta">Printed: ${now}</div>`;
+        win.document.write(`<html><head><title>${title}</title>${style}</head><body>${headerHtml}${table.outerHTML}</body></html>`);
+        win.document.close();
+        win.focus();
+        // Slight delay to allow rendering before print
+        setTimeout(() => { win.print(); win.close(); }, 200);
+    } catch (err) {
+        console.error('Print error:', err);
+        showError('Failed to prepare print view.');
+    }
+}
+
+window.printResidents = printResidents;
 
 
 
@@ -886,8 +1035,10 @@ window.loadResidentsForBarangay = async function(barangayName) {
         return;
     }
 
+    const residents = [];
     snapshot.forEach(docSnap => {
         const resident = docSnap.data();
+        residents.push({ id: docSnap.id, ...resident });
         
         // Create status display with badges
         let status = "";
@@ -906,25 +1057,74 @@ window.loadResidentsForBarangay = async function(barangayName) {
             statusClass = "status-none";
         }
         
-        const row = `
-            <tr>
-                <td>${resident.name}</td>
-                <td>${resident.age}</td>
-                <td>${resident.addressZone}</td>
-                <td>${resident.householdNumber}</td>
-                <td>${resident.familyMembers}</td>
-                <td><span class="status-badge ${statusClass}">${status}</span></td>
-                <td>${resident.monthlyIncome ?? ''}</td>
-                <td>${resident.aidHistory ?? ''}</td>
-                <td>${resident.evacueeHistory ?? ''}</td>
-                <td>
-                    <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
-                    <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
-                </td>
-            </tr>
-        `;
-        tableBody.innerHTML += row;
     });
+
+    // Sort A–Z by last name
+    function lastNameOf(fullName = '') {
+        const parts = String(fullName).trim().split(/\s+/);
+        return parts.length ? parts[parts.length - 1].toLowerCase() : '';
+    }
+    residents.sort((a,b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+
+    residents.forEach((resident) => {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-household', String(resident.householdNumber ?? ''));
+
+        const cells = [
+            { text: resident.name ?? '', order: lastNameOf(resident.name) },
+            { text: resident.age ?? '' },
+            { text: resident.addressZone ?? '' },
+            { text: resident.householdNumber ?? '' },
+            { text: resident.gender ?? '' },
+            { text: resident.householdStatus ?? '' },
+            { text: resident.familyMembers ?? '' },
+            { text: resident.monthlyIncome ?? '' },
+            { text: resident.aidHistory ?? '' },
+            { text: resident.remarks ?? '' },
+            { text: resident.evacueeHistory ?? '' }
+        ];
+        cells.forEach((c, idx) => {
+            const td = document.createElement('td');
+            if (idx === 0 && c.order) td.setAttribute('data-order', c.order);
+            td.textContent = String(c.text);
+            if (idx === 3) td.className = 'household';
+            tr.appendChild(td);
+        });
+        const actionTd = document.createElement('td');
+        actionTd.className = 'no-export';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.setAttribute('data-id', resident.id);
+        editBtn.textContent = 'Edit';
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.setAttribute('data-id', resident.id);
+        delBtn.textContent = 'Delete';
+        actionTd.appendChild(editBtn);
+        actionTd.appendChild(delBtn);
+        tr.appendChild(actionTd);
+        tableBody.appendChild(tr);
+    });
+
+    // Initialize DataTable for barangay list
+    try {
+        if (window.jQuery && $('#residentsTable').length) {
+            if ($.fn.dataTable.isDataTable('#residentsTable')) {
+                $('#residentsTable').DataTable().destroy();
+            }
+            $('#residentsTable').DataTable({
+                order: [[0, 'asc']],
+                dom: 'Bfrtip',
+                buttons: [
+                    { extend: 'excelHtml5', title: 'Residents', exportOptions: { columns: ':not(.no-export)' } },
+                    { extend: 'pdfHtml5', title: 'Residents', orientation: 'landscape', pageSize: 'A4', exportOptions: { columns: ':not(.no-export)' } },
+                    { extend: 'print', title: 'Residents', customize: function (win) { try { win.document.title = 'Residents'; } catch(_) {} }, exportOptions: { columns: ':not(.no-export)' } }
+                ],
+                columnDefs: [ { targets: 'no-export', searchable: false, orderable: false } ],
+                pageLength: 10
+            });
+        }
+    } catch (e) { console.warn('DataTable init failed:', e); }
 };
 
 document.getElementById("addResidentForm").addEventListener("submit", async function(event) {
@@ -949,21 +1149,33 @@ document.getElementById("addResidentForm").addEventListener("submit", async func
     const ageInput = document.getElementById("age");
     const addressZoneInput = document.getElementById("addressZone");
     const householdNumberInput = document.getElementById("householdNumber");
+    const genderInput = document.getElementById("gender");
+    const householdStatusInput = document.getElementById("householdStatus");
     const familyMembersInput = document.getElementById("familyMembers");
     const evacueeHistoryInput = document.getElementById("evacueeHistory");
     const studentCheckbox = document.getElementById("student");
     const workingCheckbox = document.getElementById("working");
     const monthlyIncomeInput = document.getElementById("monthlyIncome");
+    const remarksInput = document.getElementById("remarks");
 
-    if (!nameInput || !ageInput || !addressZoneInput || !householdNumberInput || !familyMembersInput || !evacueeHistoryInput || !studentCheckbox || !workingCheckbox || !monthlyIncomeInput) {
+    if (!nameInput || !ageInput || !addressZoneInput || !householdNumberInput || !familyMembersInput || !evacueeHistoryInput || !studentCheckbox || !workingCheckbox || !monthlyIncomeInput || !genderInput || !householdStatusInput) {
         console.error("❌ Missing form fields!");
         alert("Form is incomplete. Please refresh the page.");
         submitButton.disabled = false;
         return;
     }
 
+    // Normalize name into first/last + sort key
+    const fullName = (nameInput.value || '').trim();
+    const parts = fullName.split(/\s+/);
+    const lastName = parts.length > 1 ? parts[parts.length - 1] : fullName;
+    const firstName = parts.length > 1 ? parts.slice(0, -1).join(' ') : '';
+
     const residentData = {
-        name: nameInput.value,
+        name: fullName,
+        firstName: firstName,
+        lastName: lastName,
+        lastNameLower: lastName.toLowerCase(),
         age: ageInput.value,
         addressZone: addressZoneInput.value,
         householdNumber: householdNumberInput.value,
@@ -971,9 +1183,12 @@ document.getElementById("addResidentForm").addEventListener("submit", async func
         isStudent: studentCheckbox.checked,
         isWorking: workingCheckbox.checked,
         monthlyIncome: workingCheckbox.checked ? monthlyIncomeInput.value : null,
+        gender: genderInput.value,
+        householdStatus: householdStatusInput.value,
         familyMembers: familyMembersInput.value,
         aidHistory: document.getElementById("aidHistory").value,
         evacueeHistory: evacueeHistoryInput.value,
+        remarks: remarksInput ? remarksInput.value : ''
     };
 
     try {
@@ -1001,11 +1216,20 @@ document.getElementById("editResidentForm").addEventListener("submit", async fun
         const isWorking = document.getElementById("editWorking").checked;
         const isStudent = document.getElementById("editStudent").checked;
         
+        const fullName = (document.getElementById("editName").value || '').trim();
+        const parts = fullName.split(/\s+/);
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : fullName;
+        const firstName = parts.length > 1 ? parts.slice(0, -1).join(' ') : '';
         await updateDoc(doc(db, "residents", docId), {
-            name: document.getElementById("editName").value,
+            name: fullName,
+            firstName: firstName,
+            lastName: lastName,
+            lastNameLower: lastName.toLowerCase(),
             age: Number(document.getElementById("editAge").value),
             addressZone: document.getElementById("editAddressZone").value,
             householdNumber: String(document.getElementById("editHouseholdNumber").value),
+            gender: document.getElementById("editGender").value,
+            householdStatus: document.getElementById("editHouseholdStatus").value,
             familyMembers: Number(document.getElementById("editFamilyMembers").value),
             monthlyIncome: isWorking && !isStudent ? 
                 (document.getElementById("editMonthlyIncome").value === "" ? null : Number(document.getElementById("editMonthlyIncome").value))
@@ -1014,6 +1238,7 @@ document.getElementById("editResidentForm").addEventListener("submit", async fun
             evacueeHistory: Number(document.getElementById("editEvacueeHistory").value),
             isStudent: isStudent,
             isWorking: isWorking,
+            remarks: document.getElementById("editRemarks").value,
         });
 
         alert("✅ Resident updated successfully!");
@@ -1053,6 +1278,11 @@ function showSection(sectionId) {
     const main = document.querySelector('.main-content');
     if (main) { main.style.display = 'block'; main.style.width = '100%'; }
 
+    // Clean up listeners from previous section
+    if (window.App.currentSection && window.App.currentSection !== sectionId) {
+        window.App.clearListeners(window.App.currentSection);
+    }
+
     // Hide all sections, then show target only
     document.querySelectorAll('.section').forEach(sec => { sec.classList.add('hidden'); sec.style.display = 'none'; });
     const target = document.getElementById(sectionId);
@@ -1086,6 +1316,15 @@ function showSection(sectionId) {
         if (typeof loadBarangayDeliveries === "function") loadBarangayDeliveries(loggedInUserData.username);
     }
 
+    // MSWD Track Goods
+    if (sectionId === 'trackGoods' && loggedInUserData?.role === 'mswd') {
+        // trigger totals refresh if available
+        try {
+            const evt = new Event('DOMContentLoaded'); // fallback trigger for listener
+            document.dispatchEvent(evt);
+        } catch(_) {}
+    }
+
     // Statistics
     if (sectionId === "statistics") {
         if (loggedInUserData?.role === "mswd") {
@@ -1094,6 +1333,7 @@ function showSection(sectionId) {
             if (typeof window.loadBarangayPriorityChart === "function") {
                 window.loadBarangayPriorityChart(db, getDocs, collection);
             }
+            if (typeof window.setupStatsExports === 'function') window.setupStatsExports('barangay');
         } else if (loggedInUserData?.role === "barangay") {
             document.getElementById("mswdStatisticsContainer").classList.add("hidden");
             document.getElementById("barangayStatisticsContainer").classList.remove("hidden");
@@ -1101,9 +1341,13 @@ function showSection(sectionId) {
             if (typeof window.loadResidentPriorityChart === "function") {
                 window.loadResidentPriorityChart(db, getDocs, collection, query, where, barangayName);
             }
+            if (typeof window.setupStatsExports === 'function') window.setupStatsExports('resident');
         }
         try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_) {}
     }
+
+    // Track current section
+    window.App.currentSection = sectionId;
 }
 window.showSection = showSection;
 
@@ -1149,22 +1393,7 @@ window.showChangePassword = function() {
             document.getElementById('changePasswordModal').classList.add('hidden');
             form.reset();
         } catch (err) {
-            let userFriendlyMessage = "Failed to update password. Please try again.";
-            
-            // Handle specific Firebase error codes with user-friendly messages
-            if (err.code === 'auth/wrong-password') {
-                userFriendlyMessage = "Current password is incorrect. Please try again.";
-            } else if (err.code === 'auth/weak-password') {
-                userFriendlyMessage = "New password is too weak. Please choose a stronger password.";
-            } else if (err.code === 'auth/requires-recent-login') {
-                userFriendlyMessage = "For security reasons, please log out and log back in before changing your password.";
-            } else if (err.code === 'auth/too-many-requests') {
-                userFriendlyMessage = "Too many failed attempts. Please wait a moment and try again.";
-            } else if (err.code === 'auth/network-request-failed') {
-                userFriendlyMessage = "Network error. Please check your connection and try again.";
-            }
-            
-            showError(userFriendlyMessage);
+            showError(mapAuthError(err));
         }
     });
 })();
@@ -1213,6 +1442,281 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// ===== Double-Click Prevention Helper =====
+function addDoubleClickPrevention(button, asyncFunction, loadingText = 'Processing...') {
+  let isProcessing = false;
+  const originalText = button.textContent;
+  const originalHTML = button.innerHTML;
+  
+  button.addEventListener('click', async function(e) {
+    e.preventDefault();
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    button.disabled = true;
+    button.textContent = loadingText;
+    
+    try {
+      await asyncFunction();
+    } catch (error) {
+      console.error('Button action failed:', error);
+    } finally {
+      setTimeout(() => {
+        isProcessing = false;
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+      }, 1000);
+    }
+  });
+}
+
+// ===== Goods Inventory UI (MSWD) =====
+document.addEventListener('DOMContentLoaded', async function() {
+  // Load totals if Track Goods section exists
+  async function refreshTotals() {
+    try {
+      // Fetch totals directly from Firestore
+      const totalsRef = doc(db, 'inventory', 'totals');
+      const snap = await getDoc(totalsRef);
+      const totals = snap.exists() ? snap.data() : { rice: 0, biscuits: 0, canned: 0, shirts: 0 };
+      const safe = (v) => (typeof v === 'number' ? v : 0);
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+      set('totalRice', safe(totals.rice));
+      set('totalBiscuits', safe(totals.biscuits));
+      set('totalCanned', safe(totals.canned));
+      set('totalShirts', safe(totals.shirts));
+      const overall = safe(totals.rice) + safe(totals.biscuits) + safe(totals.canned) + safe(totals.shirts);
+      set('totalOverall', overall);
+    } catch (e) { console.warn('Failed loading inventory totals', e); }
+  }
+  
+  // Setup inventory management buttons with double-click prevention
+  const historyBtn = document.getElementById('historyBtn');
+  if (historyBtn) {
+    addDoubleClickPrevention(historyBtn, showInventoryHistory, 'Loading History...');
+  }
+  
+  const newBatchBtn = document.getElementById('newBatchBtn');
+  if (newBatchBtn) {
+    addDoubleClickPrevention(newBatchBtn, showNewBatchModal, 'Processing...');
+  }
+  
+  const summaryBtn = document.getElementById('summaryBtn');
+  if (summaryBtn) {
+    addDoubleClickPrevention(summaryBtn, generateSummaryReport, 'Generating Report...');
+  }
+  
+  // Setup barangay delivery history button with double-click prevention
+  const deliveryHistoryBtn = document.getElementById('viewDeliveryHistoryBtn');
+  if (deliveryHistoryBtn) {
+    addDoubleClickPrevention(deliveryHistoryBtn, showDeliveryHistory, 'Loading History...');
+  }
+  
+  // Setup delivery form event listener with double-click prevention
+  const deliveryForm = document.getElementById('deliveryForm');
+  if (deliveryForm) {
+    let isSubmittingDelivery = false;
+    deliveryForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (isSubmittingDelivery) return;
+      isSubmittingDelivery = true;
+      
+      const submitBtn = deliveryForm.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="btn-icon">⏳</span><span>Scheduling...</span>';
+      
+      try {
+        await handleScheduleDelivery();
+      } finally {
+        setTimeout(() => {
+          isSubmittingDelivery = false;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span class="btn-icon">🚚</span><span>Schedule Delivery</span>';
+        }, 1000);
+      }
+    });
+  }
+
+  const goodsForm = document.getElementById('goodsForm');
+  if (goodsForm) {
+    await refreshTotals();
+    // expose for external refresh without rebinding listeners
+    window.refreshInventoryTotals = refreshTotals;
+    if (!goodsForm.dataset.boundSubmit) {
+      goodsForm.dataset.boundSubmit = '1';
+    let isSubmittingInventory = false;
+    goodsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (isSubmittingInventory || goodsForm.dataset.submitting === '1') return; // prevent double submit
+      isSubmittingInventory = true;
+      goodsForm.dataset.submitting = '1';
+      const submitBtn = goodsForm.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.7'; }
+      // disable inputs to avoid value changes mid-flight
+      const inputs = goodsForm.querySelectorAll('input, textarea, select');
+      inputs.forEach(i => { i.disabled = true; });
+      const delta = {
+        rice: Number(document.getElementById('invRice')?.value || 0),
+        biscuits: Number(document.getElementById('invBiscuits')?.value || 0),
+        canned: Number(document.getElementById('invCanned')?.value || 0),
+        shirts: Number(document.getElementById('invShirts')?.value || 0),
+      };
+      try {
+        // Use atomic transaction to avoid races and 400 stream issues
+        await updateInventoryTransaction({
+          rice: Number(delta.rice || 0),
+          biscuits: Number(delta.biscuits || 0),
+          canned: Number(delta.canned || 0),
+          shirts: Number(delta.shirts || 0)
+        });
+        // Log the transaction
+        await logInventoryTransaction({
+          action: 'stock-in',
+          type: 'manual',
+          items: {
+            rice: Number(delta.rice || 0),
+            biscuits: Number(delta.biscuits || 0),
+            canned: Number(delta.canned || 0),
+            shirts: Number(delta.shirts || 0)
+          },
+          user: loggedInUserData?.username || 'Unknown',
+          description: 'Manual stock addition'
+        });
+        showSuccess('Inventory updated.');
+        goodsForm.reset();
+        await refreshTotals();
+      } catch (err) {
+        console.error(err);
+        showError('Failed to update inventory.');
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = '1'; }
+        inputs.forEach(i => { i.disabled = false; });
+        isSubmittingInventory = false;
+        goodsForm.dataset.submitting = '0';
+      }
+    });
+    }
+  }
+});
+
+// ===== Statistics Export/Print Helpers =====
+function setupStatsExports(type) {
+  try {
+    if (type === 'barangay') {
+      const excelBtn = document.getElementById('exportBarangayExcelBtn');
+      const pdfBtn = document.getElementById('exportBarangayPDFBtn');
+      const printBtn = document.getElementById('printBarangayStatsBtn');
+      bindStatsButtons(excelBtn, pdfBtn, printBtn, 'barangay');
+    } else {
+      const excelBtn = document.getElementById('exportResidentExcelBtn');
+      const pdfBtn = document.getElementById('exportResidentPDFBtn');
+      const printBtn = document.getElementById('printResidentStatsBtn');
+      bindStatsButtons(excelBtn, pdfBtn, printBtn, 'resident');
+    }
+  } catch(_) {}
+}
+
+function bindStatsButtons(excelBtn, pdfBtn, printBtn, scope) {
+  const chartCanvasId = scope === 'barangay' ? 'barangayPriorityChart' : 'residentPriorityChart';
+  const legendId = scope === 'barangay' ? 'barangayLegend' : 'residentLegend';
+  const listId = scope === 'barangay' ? 'topBarangaysList' : 'topResidentsList';
+
+  if (excelBtn) {
+    excelBtn.onclick = () => exportStatsTableToExcel(listId, scope === 'barangay' ? 'Barangay Priority' : 'Resident Priority');
+  }
+  if (pdfBtn) {
+    pdfBtn.onclick = () => exportStatsToPDF(chartCanvasId, listId, scope === 'barangay' ? 'Barangay Priority' : 'Resident Priority');
+  }
+  if (printBtn) {
+    printBtn.onclick = () => printStats(chartCanvasId, listId, scope === 'barangay' ? 'Barangay Priority' : 'Resident Priority');
+  }
+}
+
+function exportStatsTableToExcel(listContainerId, title) {
+  const container = document.getElementById(listContainerId);
+  if (!container) return;
+  // Build a simple table from the list content for export
+  const tempTable = document.createElement('table');
+  const rows = container.querySelectorAll('li');
+  const thead = document.createElement('thead');
+  thead.innerHTML = `<tr><th>${title}</th><th>Value</th></tr>`;
+  tempTable.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  rows.forEach(li => {
+    const name = li.querySelector('.pl-name')?.textContent || '';
+    const value = li.querySelector('.pl-value')?.textContent || '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${name}</td><td>${value}</td>`;
+    tbody.appendChild(tr);
+  });
+  tempTable.appendChild(tbody);
+
+  if (window.jQuery) {
+    const $ = window.jQuery;
+    $(tempTable).DataTable({
+      dom: 'Bfrtip',
+      buttons: [ { extend: 'excelHtml5', title } ],
+      destroy: true
+    });
+    // Trigger the button programmatically
+    $(tempTable).DataTable().button('.buttons-excel').trigger();
+    $(tempTable).DataTable().destroy();
+  }
+}
+
+function exportStatsToPDF(chartCanvasId, listContainerId, title) {
+  // Use print pipeline with PDF button from DataTables or fallback to window.print with media
+  printStats(chartCanvasId, listContainerId, title, true);
+}
+
+function printStats(chartCanvasId, listContainerId, title, pdf = false) {
+  const chartCanvas = document.getElementById(chartCanvasId);
+  const listContainer = document.getElementById(listContainerId);
+  if (!chartCanvas || !listContainer) return;
+
+  const win = window.open('', '_blank');
+  const style = `
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; color:#111; }
+      h1 { font-size: 18px; margin: 0 0 8px; text-align:center; }
+      .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      .chart-wrap { display:flex; justify-content:center; }
+      .list-wrap table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
+      th { background:#f5f5f5; }
+      @page { margin: 12mm; }
+      @media print { .controls { display:none } }
+    </style>`;
+
+  // Build a simple table from the list content
+  const tableHtml = (() => {
+    const rows = listContainer.querySelectorAll('li');
+    let h = '<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>';
+    rows.forEach(li => {
+      const name = li.querySelector('.pl-name')?.textContent || '';
+      const value = li.querySelector('.pl-value')?.textContent || '';
+      h += `<tr><td>${name}</td><td>${value}</td></tr>`;
+    });
+    h += '</tbody></table>';
+    return h;
+  })();
+
+  // Clone chart as image
+  const dataUrl = chartCanvas.toDataURL('image/png');
+  const html = `
+    <h1>${title}</h1>
+    <div class="grid">
+      <div class="chart-wrap"><img src="${dataUrl}" style="max-width:700px;width:100%;"/></div>
+      <div class="list-wrap">${tableHtml}</div>
+    </div>`;
+
+  win.document.write(`<html><head><title>${title}</title>${style}</head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 200);
+}
+
 // ✅ Event Delegation for Edit + Delete buttons in residents table
 document.addEventListener("click", async (e) => {
   if (e.target.classList.contains("edit-btn")) {
@@ -1231,9 +1735,12 @@ document.addEventListener("click", async (e) => {
     document.getElementById("editAddressZone").value = r.addressZone || "";
     document.getElementById("editHouseholdNumber").value = r.householdNumber || "";
     document.getElementById("editFamilyMembers").value = r.familyMembers || "";
+    document.getElementById("editGender").value = r.gender || "Male";
+    document.getElementById("editHouseholdStatus").value = r.householdStatus || "Poor";
     document.getElementById("editMonthlyIncome").value = r.monthlyIncome ?? "";
     document.getElementById("editAidHistory").value = r.aidHistory || "";
     document.getElementById("editEvacueeHistory").value = r.evacueeHistory || "";
+    document.getElementById("editRemarks").value = r.remarks || "";
     document.getElementById("editStudent").checked = r.isStudent || false;
     document.getElementById("editWorking").checked = r.isWorking || false;
     toggleIncomeField("edit");
@@ -1291,17 +1798,22 @@ async function approveRequest(requestId, barangayName) {
             approvedAt: new Date()
         });
         
-        // Create user account for the approved barangay
-        const email = `${barangayName}@example.com`;
-        const password = 'default123'; // Default password
-        
+        // Create user account for the approved barangay if needed (noop if exists)
+        const formatted = String(barangayName || '').toLowerCase().replace(/\s+/g, '');
+        const email = `${formatted}@example.com`;
+        const username = `barangay_${formatted}`;
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            await createUserInFirestore(userCredential.user.uid, `barangay_${barangayName}`, email, 'barangay');
-            showSuccess(`Account approved for ${barangayName}. Default password: ${password}`);
+            const methods = await fetchSignInMethodsForEmail(auth, email);
+            if (!methods || methods.length === 0) {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, 'default123');
+                await createUserInFirestore(userCredential.user.uid, username, email, 'barangay');
+            } else {
+                await createUserInFirestore('already-in-auth', username, email, 'barangay');
+            }
+            showSuccess(`Account approved for ${barangayName}.`);
         } catch (userError) {
-            console.error("Error creating user account:", userError);
-            showError("Account approved but user creation failed. Please contact support.");
+            console.error('Error creating user account:', userError);
+            showError('Account approved but user creation failed.');
         }
         
         // Refresh the requests list
@@ -1408,81 +1920,108 @@ async function loadResidentsForModal(barangayName) {
             return;
         }
         
+        const rowsData = [];
         snapshot.forEach((docSnap) => {
             const resident = docSnap.data();
-            const row = document.createElement("tr");
-            row.className = "resident-row";
-            
-            // Determine status and status class
-            let status = "None";
-            let statusClass = "status-none";
-            
-            if (resident.isStudent && resident.isWorking) {
-                status = "Student & Working";
-                statusClass = "status-both";
-            } else if (resident.isStudent) {
-                status = "Student";
-                statusClass = "status-student";
-            } else if (resident.isWorking) {
-                status = "Working";
-                statusClass = "status-working";
-            }
-            
-            row.innerHTML = `
-                <td>
-                    <div class="resident-name">
-                        <span class="name-text">${resident.name || 'No Name'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-age">
-                        <span class="age-text">${resident.age || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-zone">
-                        <span class="zone-text">${resident.addressZone || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-household">
-                        <span class="household-text">${resident.householdNumber || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-family">
-                        <span class="family-text">${resident.familyMembers || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-income">
-                        <span class="income-text">${resident.monthlyIncome ? '₱' + resident.monthlyIncome.toLocaleString() : 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-aid">
-                        <span class="aid-text">${resident.aidHistory || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-evac">
-                        <span class="evac-text">${resident.evacueeHistory || 'N/A'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="resident-status">
-                        <span class="status-badge ${statusClass}">
-                            <span class="status-text">${status}</span>
-                        </span>
-                    </div>
-                </td>
-            `;
-            
+            rowsData.push(resident);
+        });
+
+        // Sort by last name A–Z
+        function lastNameOf(fullName = '') {
+            const parts = String(fullName).trim().split(/\s+/);
+            return parts.length ? parts[parts.length - 1].toLowerCase() : '';
+        }
+        rowsData.sort((a,b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+
+        rowsData.forEach((resident) => {
+            const row = document.createElement('tr');
+            row.className = 'resident-row';
+            const values = [
+                resident.name || 'No Name',
+                resident.age || 'N/A',
+                resident.addressZone || 'N/A',
+                resident.householdNumber || 'N/A',
+                resident.gender || 'N/A',
+                resident.householdStatus || 'N/A',
+                resident.familyMembers || 'N/A',
+                resident.monthlyIncome ? '₱' + Number(resident.monthlyIncome).toLocaleString() : 'N/A',
+                resident.aidHistory || 'N/A',
+                resident.remarks || 'N/A',
+                resident.evacueeHistory || 'N/A'
+            ];
+            values.forEach((val, idx) => {
+                const td = document.createElement('td');
+                td.textContent = String(val);
+                if (idx === 3) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'resident-household';
+                    const span = document.createElement('span');
+                    span.className = 'household-text';
+                    span.textContent = String(val);
+                    wrap.appendChild(span);
+                    td.textContent = '';
+                    td.appendChild(wrap);
+                }
+                row.appendChild(td);
+            });
+            let status = 'None'; let statusClass = 'status-none';
+            if (resident.isStudent && resident.isWorking) { status = 'Student & Working'; statusClass = 'status-both'; }
+            else if (resident.isStudent) { status = 'Student'; statusClass = 'status-student'; }
+            else if (resident.isWorking) { status = 'Working'; statusClass = 'status-working'; }
+            const statusTd = document.createElement('td');
+            const wrap = document.createElement('div'); wrap.className = 'resident-status';
+            const badge = document.createElement('span'); badge.className = 'status-badge ' + statusClass;
+            const txt = document.createElement('span'); txt.className = 'status-text'; txt.textContent = status;
+            badge.appendChild(txt); wrap.appendChild(badge); statusTd.appendChild(wrap); row.appendChild(statusTd);
             tableBody.appendChild(row);
         });
         
         // Setup search functionality
         setupResidentSearch();
+
+        // Initialize DataTable for modal if available
+        try {
+            if (window.jQuery && $('#viewResidentsTable').length) {
+                if ($.fn.dataTable.isDataTable('#viewResidentsTable')) {
+                    $('#viewResidentsTable').DataTable().destroy();
+                }
+                const dt = $('#viewResidentsTable').DataTable({
+                    order: [[0, 'asc']],
+                    dom: 'Bfrtip',
+                    buttons: [
+                        { extend: 'excelHtml5', title: 'Residents', exportOptions: { columns: ':not(.no-export)' } },
+                        { extend: 'pdfHtml5', title: 'Residents', orientation: 'landscape', pageSize: 'A4', exportOptions: { columns: ':not(.no-export)' } },
+                        { extend: 'print', title: 'Residents', customize: function (win) { try { win.document.title = 'Residents'; } catch(_) {} }, exportOptions: { columns: ':not(.no-export)' } }
+                    ],
+                    pageLength: 10
+                });
+                // Move DataTables buttons above the search bar
+                try {
+                    const wrapper = document.getElementById('viewResidentsTable').closest('.dataTables_wrapper');
+                    const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
+                    const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
+                    const searchSection = document.querySelector('#viewResidentsModal .search-section');
+                    const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
+                    if (btns && searchSection) {
+                        if (searchBox) {
+                            searchSection.insertBefore(btns, searchBox);
+                        } else {
+                            searchSection.insertBefore(btns, searchSection.firstChild);
+                        }
+                        // Layout buttons horizontally with spacing
+                        btns.style.margin = '0 0 8px 0';
+                        btns.style.display = 'flex';
+                        btns.style.gap = '8px';
+                        btns.querySelectorAll('button').forEach(b => {
+                            b.style.display = 'inline-block';
+                            b.style.width = 'auto';
+                        });
+                    }
+                    // Hide DataTables' built-in search; we'll keep the custom one above
+                    if (filter) { filter.style.display = 'none'; }
+                } catch(_) {}
+            }
+        } catch (e) { console.warn('DataTable init (modal) failed:', e); }
         
     } catch (error) {
         console.error("Error loading residents for modal:", error);
@@ -1501,12 +2040,25 @@ function setupResidentSearch() {
         
         rows.forEach(row => {
             const text = row.textContent.toLowerCase();
-            if (text.includes(searchTerm)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
+            const matches = text.includes(searchTerm);
+            row.style.display = matches ? '' : 'none';
+        });
+
+        // Household-aware: if any member matches, show all same-household rows
+        const visibleHouseholds = new Set();
+        document.querySelectorAll('#viewResidentsTableBody .resident-row').forEach(row => {
+            if (row.style.display !== 'none') {
+                const hhCell = row.querySelector('.resident-household .household-text');
+                if (hhCell) visibleHouseholds.add(hhCell.textContent.trim());
             }
         });
+        if (searchTerm) {
+            document.querySelectorAll('#viewResidentsTableBody .resident-row').forEach(row => {
+                const hhCell = row.querySelector('.resident-household .household-text');
+                const hh = hhCell ? hhCell.textContent.trim() : '';
+                if (visibleHouseholds.has(hh)) row.style.display = '';
+            });
+        }
     });
 }
 
@@ -1735,12 +2287,254 @@ function closeEditResidentModal() {
     const modal = document.getElementById("editResidentModal");
     if (modal) {
         modal.classList.add("hidden");
-        modal.style.display = "none";
-        modal.style.visibility = "hidden";
-        modal.style.opacity = "0";
-        modal.style.pointerEvents = "none";
     }
 }
 
-window.closeEditResidentModal = closeEditResidentModal;
+// ===== INVENTORY HISTORY & BATCH MANAGEMENT =====
+
+// Show inventory history modal
+async function showInventoryHistory() {
+    try {
+        const modal = document.getElementById('historyModal');
+        if (!modal) return;
+        
+        // Load history data
+        const logs = await getInventoryLogs();
+        const historyBody = document.getElementById('inventoryHistoryBody');
+        if (!historyBody) return;
+        
+        // Clear existing data
+        historyBody.innerHTML = '';
+        
+        if (logs.length === 0) {
+            historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No inventory history found.</td></tr>';
+        } else {
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                const createdAt = log.createdAt?.toDate ? log.createdAt.toDate() : new Date();
+                
+                // Format items display
+                let itemsDisplay = '';
+                if (log.items) {
+                    const items = [];
+                    if (log.items.rice) items.push(`Rice: ${log.items.rice}`);
+                    if (log.items.biscuits) items.push(`Biscuits: ${log.items.biscuits}`);
+                    if (log.items.canned) items.push(`Canned: ${log.items.canned}`);
+                    if (log.items.shirts) items.push(`Shirts: ${log.items.shirts}`);
+                    itemsDisplay = items.join(', ');
+                }
+                
+                row.innerHTML = `
+                    <td>${createdAt.toLocaleString()}</td>
+                    <td>${log.action === 'stock-in' ? '📈 Stock In' : '📉 Delivery'}</td>
+                    <td>${itemsDisplay || 'N/A'}</td>
+                    <td>-</td>
+                    <td>${log.user || 'System'}</td>
+                    <td>${log.id || 'N/A'}</td>
+                `;
+                historyBody.appendChild(row);
+            });
+        }
+        
+        // Show modal
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Error loading inventory history:', error);
+        showError('Failed to load inventory history.');
+    }
+}
+
+// Show new batch modal
+function showNewBatchModal() {
+    const batchName = prompt('Enter relief operation name:', 'Relief Operation ' + new Date().toLocaleDateString());
+    if (batchName) {
+        startNewReliefOperation(batchName);
+    }
+}
+
+// Start new relief operation
+async function startNewReliefOperation(name) {
+    try {
+        const periodLabel = new Date().toLocaleDateString();
+        await startNewBatch(name, periodLabel);
+        showSuccess('New relief operation started. Inventory has been reset.');
+        
+        // Refresh inventory totals
+        if (typeof window.refreshInventoryTotals === 'function') {
+            await window.refreshInventoryTotals();
+        }
+    } catch (error) {
+        console.error('Error starting new relief operation:', error);
+        showError('Failed to start new relief operation.');
+    }
+}
+
+// Generate summary report
+async function generateSummaryReport() {
+    try {
+        let activeBatch, logs, totals;
+        
+        try {
+            activeBatch = await getActiveBatch();
+        } catch (e) {
+            console.warn('Failed to get active batch:', e);
+            activeBatch = { id: 'default', name: 'Current Operation', periodLabel: new Date().toLocaleDateString() };
+        }
+        
+        try {
+            logs = await getInventoryLogs({ batchId: activeBatch.id });
+        } catch (e) {
+            console.warn('Failed to get inventory logs:', e);
+            logs = [];
+        }
+        
+        try {
+            totals = await getInventoryTotals();
+        } catch (e) {
+            console.warn('Failed to get inventory totals:', e);
+            totals = { rice: 0, biscuits: 0, canned: 0, shirts: 0 };
+        }
+        
+        // Create summary data
+        let stockIn = { rice: 0, biscuits: 0, canned: 0, shirts: 0 };
+        let deliveries = { rice: 0, biscuits: 0, canned: 0, shirts: 0 };
+        
+        logs.forEach(log => {
+            if (log.action === 'stock-in' && log.items) {
+                stockIn.rice += Number(log.items.rice || 0);
+                stockIn.biscuits += Number(log.items.biscuits || 0);
+                stockIn.canned += Number(log.items.canned || 0);
+                stockIn.shirts += Number(log.items.shirts || 0);
+            } else if (log.action === 'delivery' && log.items) {
+                deliveries.rice += Number(log.items.rice || 0);
+                deliveries.biscuits += Number(log.items.biscuits || 0);
+                deliveries.canned += Number(log.items.canned || 0);
+                deliveries.shirts += Number(log.items.shirts || 0);
+            }
+        });
+        
+        // Create summary HTML
+        const summaryHtml = `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Relief Operation Summary Report</h2>
+                <p><strong>Operation:</strong> ${activeBatch.name}</p>
+                <p><strong>Period:</strong> ${activeBatch.periodLabel}</p>
+                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                
+                <h3>Current Inventory</h3>
+                <table border="1" cellpadding="8" cellspacing="0">
+                    <tr><th>Item</th><th>Current Stock</th></tr>
+                    <tr><td>Rice (sacks)</td><td>${totals.rice}</td></tr>
+                    <tr><td>Biscuits (boxes)</td><td>${totals.biscuits}</td></tr>
+                    <tr><td>Canned Goods (boxes)</td><td>${totals.canned}</td></tr>
+                    <tr><td>Shirts (packs)</td><td>${totals.shirts}</td></tr>
+                </table>
+                
+                <h3>Stock Received</h3>
+                <table border="1" cellpadding="8" cellspacing="0">
+                    <tr><th>Item</th><th>Total Received</th></tr>
+                    <tr><td>Rice (sacks)</td><td>${stockIn.rice}</td></tr>
+                    <tr><td>Biscuits (boxes)</td><td>${stockIn.biscuits}</td></tr>
+                    <tr><td>Canned Goods (boxes)</td><td>${stockIn.canned}</td></tr>
+                    <tr><td>Shirts (packs)</td><td>${stockIn.shirts}</td></tr>
+                </table>
+                
+                <h3>Deliveries Made</h3>
+                <table border="1" cellpadding="8" cellspacing="0">
+                    <tr><th>Item</th><th>Total Delivered</th></tr>
+                    <tr><td>Rice (sacks)</td><td>${deliveries.rice}</td></tr>
+                    <tr><td>Biscuits (boxes)</td><td>${deliveries.biscuits}</td></tr>
+                    <tr><td>Canned Goods (boxes)</td><td>${deliveries.canned}</td></tr>
+                    <tr><td>Shirts (packs)</td><td>${deliveries.shirts}</td></tr>
+                </table>
+                
+                <p><em>Total Transactions: ${logs.length}</em></p>
+            </div>
+        `;
+        
+        // Open in new window for printing
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(summaryHtml);
+        printWindow.document.close();
+        printWindow.print();
+        
+    } catch (error) {
+        console.error('Error generating summary report:', error);
+        showError('Failed to generate summary report.');
+    }
+}
+
+// Show delivery history for barangays
+async function showDeliveryHistory() {
+    try {
+        if (!loggedInUserData || loggedInUserData.role !== 'barangay') {
+            showError('Access denied. Barangay users only.');
+            return;
+        }
+        
+        const modal = document.getElementById('deliveryHistoryModal');
+        if (!modal) return;
+        
+        // Get all deliveries for this barangay
+        const deliveries = await getDeliveries(loggedInUserData.username);
+        const historyBody = document.getElementById('deliveryHistoryBody');
+        if (!historyBody) return;
+        
+        // Clear existing data
+        historyBody.innerHTML = '';
+        
+        if (deliveries.length === 0) {
+            historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No delivery history found.</td></tr>';
+        } else {
+            // Filter for received/completed deliveries
+            const completedDeliveries = deliveries.filter(d => d.status === 'Received' || d.status === 'Delivered');
+            
+            if (completedDeliveries.length === 0) {
+                historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No completed deliveries yet.</td></tr>';
+            } else {
+                completedDeliveries.forEach(delivery => {
+                    const row = document.createElement('tr');
+                    const deliveryDate = delivery.deliveryDate?.toDate ? delivery.deliveryDate.toDate() : new Date();
+                    const updatedAt = delivery.updatedAt || new Date();
+                    
+                    // Format items received
+                    let itemsReceived = 'N/A';
+                    if (delivery.goods) {
+                        const items = [];
+                        if (delivery.goods.rice) items.push(`Rice: ${delivery.goods.rice}`);
+                        if (delivery.goods.biscuits) items.push(`Biscuits: ${delivery.goods.biscuits}`);
+                        if (delivery.goods.canned) items.push(`Canned: ${delivery.goods.canned}`);
+                        if (delivery.goods.shirts) items.push(`Shirts: ${delivery.goods.shirts}`);
+                        itemsReceived = items.join(', ');
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${deliveryDate.toLocaleDateString()}</td>
+                        <td>${delivery.details || 'No details'}</td>
+                        <td>${itemsReceived}</td>
+                        <td><span class="status-badge status-${delivery.status?.toLowerCase()}">${delivery.status}</span></td>
+                        <td>${updatedAt.toLocaleDateString()}</td>
+                    `;
+                    historyBody.appendChild(row);
+                });
+            }
+        }
+        
+        // Show modal
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    } catch (error) {
+        console.error('Error loading delivery history:', error);
+        showError('Failed to load delivery history.');
+    }
+}
+
+// Expose functions globally
+window.showInventoryHistory = showInventoryHistory;
+window.showNewBatchModal = showNewBatchModal;
+window.generateSummaryReport = generateSummaryReport;
+window.showDeliveryHistory = showDeliveryHistory;
+window.handleScheduleDelivery = handleScheduleDelivery;
+window.updateDeliveryStatus = updateDeliveryStatus;
 
