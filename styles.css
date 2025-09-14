@@ -2350,6 +2350,67 @@ html {
     margin-top: 0.25rem;
 }
 
+/* Terrain display styling */
+.terrain-display {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 0.5rem 0;
+}
+
+.terrain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    min-width: 120px;
+    justify-content: center;
+}
+
+/* Highland terrain styling */
+.terrain-badge.highland {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border: 2px solid #065f46;
+}
+
+.terrain-badge.highland::before {
+    content: '🏔️';
+    font-size: 1.1rem;
+}
+
+/* Lowland terrain styling */
+.terrain-badge.lowland {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    border: 2px solid #1e40af;
+}
+
+.terrain-badge.lowland::before {
+    content: '🌊';
+    font-size: 1.1rem;
+}
+
+/* Loading state */
+.terrain-badge:not(.highland):not(.lowland) {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white;
+    border: 2px solid #374151;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
 /* Form actions */
 .add-resident-modal .form-actions {
     display: flex;
