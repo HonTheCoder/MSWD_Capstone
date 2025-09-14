@@ -55,6 +55,7 @@ import {
     getDocs, 
     getDoc,
     addDoc, 
+    setDoc,
     doc, 
     updateDoc, 
     deleteDoc, 
@@ -227,7 +228,7 @@ async function initializeUser(userData) {
     if (userData.role === 'mswd') {
         document.querySelectorAll('.mswd-only').forEach(el => el.style.display = 'block');
         document.querySelectorAll('.barangay-only').forEach(el => el.style.display = 'none');
-        loadAccountRequests(); 
+        loadPendingRequests();
     
         showSection('deliveryScheduling');
 } else if (userData.role === 'barangay') {
@@ -250,68 +251,21 @@ async function initializeUser(userData) {
 
 
 
-async function loadAccountRequests() {
-    const requests = await getPendingRequests();
-    const tableBody = document.getElementById("requestsTableBody");
-    tableBody.innerHTML = "";
-    requests.forEach(req => {
-        const row = document.createElement('tr');
-        const tdName = document.createElement('td');
-        tdName.textContent = String(req.barangayName || '');
-        const tdRole = document.createElement('td');
-        tdRole.textContent = 'Barangay';
-        const tdDate = document.createElement('td');
-        const ts = req.timestamp && (req.timestamp.seconds ? new Date(req.timestamp.seconds * 1000) : new Date());
-        tdDate.textContent = ts ? ts.toLocaleDateString() : '';
-        const tdAction = document.createElement('td');
-        const approveBtn = document.createElement('button');
-        approveBtn.textContent = 'Approve';
-        approveBtn.addEventListener('click', () => window.approveRequest(req.id, req.barangayName));
-        const declineBtn = document.createElement('button');
-        declineBtn.textContent = 'Decline';
-        declineBtn.addEventListener('click', () => window.declineRequest(req.id));
-        tdAction.appendChild(approveBtn);
-        tdAction.appendChild(declineBtn);
-        row.appendChild(tdName);
-        row.appendChild(tdRole);
-        row.appendChild(tdDate);
-        row.appendChild(tdAction);
-        tableBody.appendChild(row);
-    });
-}
-
-window.approveRequest = async function (id, barangayName) {
-    const password = prompt(`Set password for ${barangayName}:`);
-    if (!password) return alert("Password is required!");
-
-    const formattedBarangay = barangayName.toLowerCase().replace(/\s+/g, '');
-    const email = `${formattedBarangay}@example.com`;
-    const username = `barangay_${formattedBarangay}`;
-
-    try {
-        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-        if (signInMethods.length > 0) {
-            await createUserInFirestore('already-in-auth', username, email, "barangay");
-        } else {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            await createUserInFirestore(userCredential.user.uid, username, email, "barangay");
-        }
-        await deleteDoc(doc(db, "accountRequests", id));
-        loadAccountRequests();
-    } catch (error) { console.error(error); }
-};
-
-window.declineRequest = async function (id) {
-    await deleteDoc(doc(db, "accountRequests", id));
-    loadAccountRequests();
-};
+// Old loadAccountRequests and declineRequest functions removed - now using new system
 
 async function handleRequestAccount(event) {
     event.preventDefault();
     const username = document.getElementById('requestUsername').value.trim();
     const email = document.getElementById('requestEmail').value.trim();
+    const contact = document.getElementById('requestContact').value.trim();
     const message = document.getElementById('requestMessage').value.trim();
-    await requestAccount(username, email, message);
+    
+    if (!username || !email || !contact || !message) {
+        showError('Please fill in all fields');
+        return;
+    }
+    
+    await requestAccount(username, email, contact, message);
     hideRequestAccount();
 }
 
@@ -678,15 +632,24 @@ async function handleScheduleDelivery() {
         const deliveryId = `${barangay}-${deliveryDate}-${Date.now()}`;
         console.log('Creating delivery:', deliveryId);
 
-        // Save delivery with goods
+        // Get new delivery fields
+        const priority = document.getElementById("deliveryPriority").value || "Normal";
+        const preferredTime = document.getElementById("deliveryTime").value || "Anytime";
+        const notes = document.getElementById("deliveryNotes").value || "";
+        
+        // Save delivery with enhanced data
         await addDoc(collection(db, 'deliveries'), {
             deliveryId, // Add unique ID
             barangay,
             deliveryDate: Timestamp.fromDate(new Date(deliveryDate)),
             details: deliveryDetails,
             goods,
+            priority,
+            preferredTime,
+            notes,
             status: 'Pending',
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            createdBy: loggedInUserData?.username || 'Admin'
         });
         
         // NOTE: Inventory will be deducted when delivery is marked as 'Received'
@@ -746,6 +709,9 @@ function loadAllDeliveriesForAdmin() {
                 deliveryDate: delivery.deliveryDate?.toDate?.() || null,
                 details: delivery.details || "No Details",
                 status: delivery.status || "Pending",
+                priority: delivery.priority || "Normal",
+                preferredTime: delivery.preferredTime || "Anytime",
+                notes: delivery.notes || "",
                 rawData: delivery
             });
         });
@@ -786,21 +752,25 @@ function renderDeliveries(deliveries) {
         `;
         row.appendChild(tdBarangay);
 
-        // Delivery Date with enhanced styling
+        // Delivery Date with enhanced styling including time
         const tdDate = document.createElement("td");
         const deliveryDate = delivery.deliveryDate;
         const dateText = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
+        const timeText = delivery.rawData?.preferredTime || "Anytime";
         const dateClass = deliveryDate && deliveryDate < new Date() ? "past-date" : "future-date";
         tdDate.innerHTML = `
             <div class="date-cell ${dateClass}">
                 <span class="date-icon">📅</span>
-                <span class="date-text">${dateText}</span>
+                <div class="date-info">
+                    <span class="date-text">${dateText}</span>
+                    <span class="time-text">${timeText}</span>
+                </div>
             </div>
         `;
         row.appendChild(tdDate);
 
-        // Details with enhanced styling and expandable goods
-        const tdDetails = document.createElement("td");
+        // Items & Quantity Column
+        const tdItems = document.createElement("td");
         const goodsItems = [];
         if (delivery.rawData?.goods) {
             const goods = delivery.rawData.goods;
@@ -810,11 +780,34 @@ function renderDeliveries(deliveries) {
             if (goods.shirts > 0) goodsItems.push(`👕 ${goods.shirts} Shirts`);
         }
         
-        const detailsPreview = delivery.details.length > 40 ? delivery.details.substring(0, 40) + '...' : delivery.details;
-        const goodsPreview = goodsItems.length > 2 ? goodsItems.slice(0, 2).join(', ') + `... +${goodsItems.length - 2} more` : goodsItems.join(', ');
+        const itemsSummary = goodsItems.length > 0 ? goodsItems.join('<br>') : 'No items specified';
+        tdItems.innerHTML = `
+            <div class="items-cell">
+                <div class="items-content">${itemsSummary}</div>
+            </div>
+        `;
+        row.appendChild(tdItems);
         
-        // Create a new row for expanded details instead of absolute positioning
-        const hasExpandedDetails = goodsItems.length > 0 || delivery.details.length > 50;
+        // Priority Column
+        const tdPriority = document.createElement("td");
+        const priority = delivery.rawData?.priority || "Normal";
+        const priorityClass = priority.toLowerCase().replace(' ', '-');
+        const priorityIcon = priority === 'Urgent' ? '🔴' : priority === 'High' ? '🟠' : '🟢';
+        tdPriority.innerHTML = `
+            <div class="priority-cell">
+                <span class="priority-badge priority-${priorityClass}">
+                    <span class="priority-icon">${priorityIcon}</span>
+                    <span class="priority-text">${priority}</span>
+                </span>
+            </div>
+        `;
+        row.appendChild(tdPriority);
+        
+        // Details Column (now includes notes)
+        const tdDetails = document.createElement("td");
+        const detailsPreview = delivery.details.length > 40 ? delivery.details.substring(0, 40) + '...' : delivery.details;
+        const notes = delivery.rawData?.notes || '';
+        const hasExpandedDetails = notes.length > 0 || delivery.details.length > 50;
         
         tdDetails.innerHTML = `
             <div class="details-cell">
@@ -824,10 +817,7 @@ function renderDeliveries(deliveries) {
                         ${detailsPreview}
                         ${hasExpandedDetails ? '<span class="expand-indicator">▼</span>' : ''}
                     </div>
-                    <div class="goods-preview" title="${goodsItems.join(', ')}">
-                        <span class="goods-icon">📦</span>
-                        ${goodsPreview || 'No items'}
-                    </div>
+                    ${notes ? `<div class="notes-preview"><small>📋 ${notes.substring(0, 30)}${notes.length > 30 ? '...' : ''}</small></div>` : ''}
                 </div>
             </div>
         `;
@@ -871,19 +861,35 @@ function renderDeliveries(deliveries) {
             expandRow.id = `details-row-${delivery.id}`;
             
             const expandCell = document.createElement("td");
-            expandCell.colSpan = 5;
+            expandCell.colSpan = 7; // Updated for new columns
+            const notes = delivery.rawData?.notes || '';
+            const priority = delivery.rawData?.priority || "Normal";
+            const preferredTime = delivery.rawData?.preferredTime || "Anytime";
+            
             expandCell.innerHTML = `
                 <div class="expanded-content">
-                    <div class="full-details">
-                        <h4>📝 Full Details:</h4>
-                        <p>${delivery.details}</p>
-                    </div>
-                    <div class="full-goods">
-                        <h4>📦 Items to Deliver:</h4>
-                        <div class="goods-grid">
-                            ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
+                    <div class="expanded-row">
+                        <div class="expanded-section">
+                            <h4>📝 Full Details:</h4>
+                            <p>${delivery.details}</p>
                         </div>
-                        ${goodsItems.length === 0 ? '<p class="no-goods">No specific items listed</p>' : ''}
+                        <div class="expanded-section">
+                            <h4>📦 Items to Deliver:</h4>
+                            <div class="goods-grid">
+                                ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
+                            </div>
+                            ${goodsItems.length === 0 ? '<p class="no-goods">No specific items listed</p>' : ''}
+                        </div>
+                    </div>
+                    ${notes ? `
+                    <div class="expanded-section">
+                        <h4>📋 Special Instructions/Notes:</h4>
+                        <p>${notes}</p>
+                    </div>` : ''}
+                    <div class="expanded-metadata">
+                        <span class="metadata-item"><strong>Priority:</strong> ${priority}</span>
+                        <span class="metadata-item"><strong>Preferred Time:</strong> ${preferredTime}</span>
+                        <span class="metadata-item"><strong>Created By:</strong> ${delivery.rawData?.createdBy || 'Unknown'}</span>
                     </div>
                 </div>
             `;
@@ -959,6 +965,8 @@ function setupDeliverySearchAndFilters() {
     const searchInput = document.getElementById("deliverySearchInput");
     const statusFilter = document.getElementById("statusFilter");
     const dateFilter = document.getElementById("dateFilter");
+    const priorityFilter = document.getElementById("priorityFilter");
+    const timeFilter = document.getElementById("timeFilter");
     const clearFiltersBtn = document.getElementById("clearFilters");
     
     if (searchInput) {
@@ -973,6 +981,14 @@ function setupDeliverySearchAndFilters() {
         dateFilter.addEventListener("change", filterDeliveries);
     }
     
+    if (priorityFilter) {
+        priorityFilter.addEventListener("change", filterDeliveries);
+    }
+    
+    if (timeFilter) {
+        timeFilter.addEventListener("change", filterDeliveries);
+    }
+    
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener("click", clearDeliveryFilters);
     }
@@ -983,16 +999,27 @@ function filterDeliveries() {
     const searchTerm = document.getElementById("deliverySearchInput")?.value.toLowerCase() || "";
     const statusFilter = document.getElementById("statusFilter")?.value || "";
     const dateFilter = document.getElementById("dateFilter")?.value || "";
+    const priorityFilter = document.getElementById("priorityFilter")?.value || "";
+    const timeFilter = document.getElementById("timeFilter")?.value || "";
     
     let filteredDeliveries = allDeliveries.filter(delivery => {
         // Search filter
         const matchesSearch = !searchTerm || 
             delivery.barangay.toLowerCase().includes(searchTerm) ||
             delivery.details.toLowerCase().includes(searchTerm) ||
+            (delivery.rawData?.notes && delivery.rawData.notes.toLowerCase().includes(searchTerm)) ||
             (delivery.deliveryDate && delivery.deliveryDate.toLocaleDateString().includes(searchTerm));
         
         // Status filter
         const matchesStatus = !statusFilter || delivery.status.toLowerCase() === statusFilter.toLowerCase();
+        
+        // Priority filter
+        const deliveryPriority = delivery.rawData?.priority || 'Normal';
+        const matchesPriority = !priorityFilter || deliveryPriority === priorityFilter;
+        
+        // Preferred time filter
+        const deliveryTime = delivery.rawData?.preferredTime || 'Anytime';
+        const matchesTime = !timeFilter || deliveryTime === timeFilter;
         
         // Date filter
         let matchesDate = true;
@@ -1015,7 +1042,7 @@ function filterDeliveries() {
             }
         }
         
-        return matchesSearch && matchesStatus && matchesDate;
+        return matchesSearch && matchesStatus && matchesDate && matchesPriority && matchesTime;
     });
     
     renderDeliveries(filteredDeliveries);
@@ -1026,10 +1053,14 @@ function clearDeliveryFilters() {
     const searchInput = document.getElementById("deliverySearchInput");
     const statusFilter = document.getElementById("statusFilter");
     const dateFilter = document.getElementById("dateFilter");
+    const priorityFilter = document.getElementById("priorityFilter");
+    const timeFilter = document.getElementById("timeFilter");
     
     if (searchInput) searchInput.value = "";
     if (statusFilter) statusFilter.value = "";
     if (dateFilter) dateFilter.value = "";
+    if (priorityFilter) priorityFilter.value = "";
+    if (timeFilter) timeFilter.value = "";
     
     renderDeliveries(allDeliveries);
 }
@@ -1171,7 +1202,7 @@ window.printResidents = printResidents;
         }
     }
     
-    // Show modal when the button is clicked
+// Show modal when the button is clicked
 function showAddResidentModal() {
     const modal = document.getElementById("addResidentModal");
     if (modal) {
@@ -1185,6 +1216,9 @@ function showAddResidentModal() {
         console.log("✅ Modal style.display:", modal.style.display);
         console.log("✅ Modal style.visibility:", modal.style.visibility);
         console.log("✅ Modal style.opacity:", modal.style.opacity);
+        
+        // Auto-populate terrain based on barangay
+        setTimeout(autoPopulateTerrainForBarangay, 100);
     } else {
         console.error("❌ Modal element not found!");
     }
@@ -1267,6 +1301,8 @@ window.loadResidentsForBarangay = async function(barangayName) {
             { text: resident.householdNumber ?? '' },
             { text: resident.gender ?? '' },
             { text: resident.householdStatus ?? '' },
+            { text: resident.houseMaterial ?? '' },
+            { text: resident.barangayTerrain ?? '' },
             { text: resident.familyMembers ?? '' },
             { text: resident.monthlyIncome ?? '' },
             { text: resident.aidHistory ?? '' },
@@ -1296,23 +1332,137 @@ window.loadResidentsForBarangay = async function(barangayName) {
         tableBody.appendChild(tr);
     });
 
-    // Initialize DataTable for barangay list
+    // Initialize DataTable for barangay residents with MSWD-style export buttons
     try {
         if (window.jQuery && $('#residentsTable').length) {
             if ($.fn.dataTable.isDataTable('#residentsTable')) {
                 $('#residentsTable').DataTable().destroy();
             }
-            $('#residentsTable').DataTable({
+            const dt = $('#residentsTable').DataTable({
                 order: [[0, 'asc']],
                 dom: 'Bfrtip',
                 buttons: [
-                    { extend: 'excelHtml5', title: 'Residents', exportOptions: { columns: ':not(.no-export)' } },
-                    { extend: 'pdfHtml5', title: 'Residents', orientation: 'landscape', pageSize: 'A4', exportOptions: { columns: ':not(.no-export)' } },
-                    { extend: 'print', title: 'Residents', customize: function (win) { try { win.document.title = 'Residents'; } catch(_) {} }, exportOptions: { columns: ':not(.no-export)' } }
+                    { extend: 'excelHtml5', title: 'Residents', text: 'Excel', exportOptions: { columns: ':not(.no-export)' } },
+                    { extend: 'pdfHtml5', title: 'Residents', text: 'PDF', pageSize: 'A4',
+                      customize: function (doc) {
+                        doc.pageMargins = [20, 40, 20, 30];
+                        doc.styles.tableHeader = { bold: true, fillColor: '#f5f5f5' };
+                        doc.content.unshift({ text: 'RELIEF GOODS DELIVERY RECEIPT', style: { bold: true, fontSize: 14 }, alignment: 'center', margin: [0,0,0,6] });
+                        doc.content.unshift({ text: 'Municipal Social Welfare and Development Office', alignment: 'center', fontSize: 10, margin: [0,0,0,12] });
+                      },
+                      exportOptions: { columns: ':not(.no-export)' } },
+                    { extend: 'print', title: 'Residents', text: 'Print',
+                      customize: function (win) {
+                        try {
+                          const body = win.document.body;
+                          const content = body.innerHTML;
+                          const wrapper = `
+                            <div class="page">
+                              <div class="header">
+                                <div class="title">RELIEF GOODS DELIVERY RECEIPT</div>
+                                <div class="subtitle">Municipal Social Welfare and Development Office</div>
+                              </div>
+                              <div class="content">${content}</div>
+                              <div class="footer"><div>Generated on ${new Date().toLocaleString()}</div></div>
+                            </div>`;
+                          const style = win.document.createElement('style');
+                          style.innerHTML = `@page { size: A4; margin: 12mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .header{ text-align:center; border-bottom:1px solid #e5e7eb; padding-bottom:8px; } .title{ font-size:16px; font-weight:700;} .subtitle{ font-size:11px; color:#555;} .content{ padding:10px 2px;} .footer{ border-top:1px solid #e5e7eb; padding-top:8px; font-size:10px; color:#666; } table{ width:100%; border-collapse:collapse;} th,td{ border:1px solid #e5e7eb; padding:6px 8px; font-size:12px;} th{ background:#f5f5f5; }`;
+                          body.innerHTML = wrapper;
+                          body.appendChild(style);
+                        } catch(_) {}
+                      },
+                      exportOptions: { columns: ':not(.no-export)' } }
                 ],
                 columnDefs: [ { targets: 'no-export', searchable: false, orderable: false } ],
                 pageLength: 10
             });
+            
+            // Move DataTables buttons to match MSWD design
+            setTimeout(() => {
+                try {
+                    const wrapper = document.getElementById('residentsTable').closest('.dataTables_wrapper');
+                    const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
+                    const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
+                    const searchSection = document.getElementById('barangayResidentSearchSection');
+                    const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
+                    
+                    if (btns && searchSection) {
+                        // Remove any existing button container to avoid duplicates
+                        const existingBtns = searchSection.querySelector('.dt-buttons');
+                        if (existingBtns && existingBtns !== btns) {
+                            existingBtns.remove();
+                        }
+                        
+                        // Move buttons to search section (above the search box)
+                        if (searchBox) {
+                            searchSection.insertBefore(btns, searchSection.firstChild);
+                        } else {
+                            searchSection.insertBefore(btns, searchSection.firstChild);
+                        }
+                        
+                        // Apply consistent styling to match MSWD design
+                        btns.style.cssText = `
+                            margin: 0 0 16px 0 !important;
+                            display: flex !important;
+                            gap: 8px !important;
+                            flex-wrap: wrap !important;
+                            z-index: 1000 !important;
+                            position: relative !important;
+                            padding: 0 !important;
+                        `;
+                        
+                        // Style each button consistently
+                        btns.querySelectorAll('button').forEach((button, index) => {
+                            button.style.cssText = `
+                                display: inline-flex !important;
+                                align-items: center !important;
+                                justify-content: center !important;
+                                width: auto !important;
+                                min-height: 36px !important;
+                                padding: 8px 12px !important;
+                                margin: 0 !important;
+                                background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
+                                color: white !important;
+                                border: none !important;
+                                border-radius: 6px !important;
+                                cursor: pointer !important;
+                                font-size: 0.875rem !important;
+                                font-weight: 500 !important;
+                                pointer-events: auto !important;
+                                user-select: none !important;
+                                z-index: 1001 !important;
+                                position: relative !important;
+                                transition: all 0.2s ease !important;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                            `;
+                            
+                            // Ensure hover effects work
+                            button.addEventListener('mouseenter', function() {
+                                this.style.transform = 'translateY(-1px)';
+                                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                            });
+                            
+                            button.addEventListener('mouseleave', function() {
+                                this.style.transform = 'translateY(0)';
+                                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                            });
+                        });
+                    }
+                    
+                    // Hide DataTables' built-in search and use our custom search
+                    if (filter) { filter.style.display = 'none'; }
+                    
+                    // Setup custom search functionality
+                    const customSearchInput = document.getElementById('barangayResidentSearchInput');
+                    if (customSearchInput) {
+                        customSearchInput.addEventListener('input', function() {
+                            dt.search(this.value).draw();
+                        });
+                    }
+                } catch(err) {
+                    console.warn('Error moving DataTables buttons:', err);
+                }
+            }, 100);
         }
     } catch (e) { console.warn('DataTable init failed:', e); }
 };
@@ -1375,6 +1525,8 @@ document.getElementById("addResidentForm").addEventListener("submit", async func
         monthlyIncome: workingCheckbox.checked ? monthlyIncomeInput.value : null,
         gender: genderInput.value,
         householdStatus: householdStatusInput.value,
+        houseMaterial: document.getElementById("houseMaterial").value,
+        barangayTerrain: document.getElementById("barangayTerrain").value,
         familyMembers: familyMembersInput.value,
         aidHistory: document.getElementById("aidHistory").value,
         evacueeHistory: evacueeHistoryInput.value,
@@ -1418,6 +1570,8 @@ document.getElementById("editResidentForm").addEventListener("submit", async fun
             age: Number(document.getElementById("editAge").value),
             addressZone: document.getElementById("editAddressZone").value,
             householdNumber: String(document.getElementById("editHouseholdNumber").value),
+            houseMaterial: document.getElementById("editHouseMaterial").value,
+            barangayTerrain: document.getElementById("editBarangayTerrain").value,
             gender: document.getElementById("editGender").value,
             householdStatus: document.getElementById("editHouseholdStatus").value,
             familyMembers: Number(document.getElementById("editFamilyMembers").value),
@@ -1588,8 +1742,42 @@ window.showChangePassword = function() {
     });
 })();
 
-
-
+// Handle approval form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const approveForm = document.getElementById('approveAccountForm');
+    if (approveForm) {
+        approveForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const requestId = document.getElementById('approveRequestId').value;
+            const barangayName = document.getElementById('approveBarangayName').value;
+            const terrain = document.getElementById('approveTerrain').value;
+            const password = document.getElementById('approvePassword').value;
+            
+            if (!terrain) {
+                showError('Please select a terrain type');
+                return;
+            }
+            
+            if (!password) {
+                showError('Please set a default password');
+                return;
+            }
+            
+            // Disable submit button to prevent double submission
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="material-icons">hourglass_empty</span><span>Approving...</span>';
+            
+            try {
+                await approveRequest(requestId, barangayName, terrain, password);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="material-icons">check_circle</span><span>Approve Account</span>';
+            }
+        });
+    }
+});
 
 // ✅ Enhanced Toggle Income Field (works for Add + Edit)
 function toggleIncomeField(prefix = "") {
@@ -1824,6 +2012,95 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 });
 
+// ===== Admin-Controlled Terrain System =====
+// Terrain is now set by admin when approving barangay accounts
+// No hardcoded profiles needed - terrain comes from user account data
+
+// Function to auto-populate terrain based on barangay (for logged-in barangay users)
+function autoPopulateTerrainForBarangay() {
+    if (loggedInUserData && loggedInUserData.role === 'barangay') {
+        // Get terrain from the user's account data (set by admin during approval)
+        const terrain = loggedInUserData.terrain || 'Lowland'; // Default to Lowland if not set
+        
+        const terrainSelect = document.getElementById('barangayTerrain');
+        const editTerrainSelect = document.getElementById('editBarangayTerrain');
+        
+        if (terrainSelect) {
+            terrainSelect.value = terrain;
+            // Update the note to reflect the new system
+            const note = terrainSelect.parentElement.querySelector('.terrain-note');
+            if (note) {
+                note.textContent = `Terrain (${terrain}) was set by admin when your account was approved`;
+            }
+        }
+        if (editTerrainSelect) {
+            editTerrainSelect.value = terrain;
+            // Update the note for edit form too
+            const editNote = editTerrainSelect.parentElement.querySelector('.terrain-note');
+            if (editNote) {
+                editNote.textContent = `Terrain (${terrain}) was set by admin when your account was approved`;
+            }
+        }
+    }
+}
+
+
+// ===== Standardized A4 Single-Page Print Helpers =====
+function buildA4PrintHTML({ title = 'RELIEF GOODS DELIVERY RECEIPT', subtitle = 'Municipal Social Welfare and Development Office', bodyHTML = '', footerHTML = '' }) {
+  return `<!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <style>
+      /* A4 single page setup */
+      @page { size: A4; margin: 12mm; }
+      html, body { height: 100%; }
+      body { font-family: Arial, Helvetica, sans-serif; color:#111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { display: grid; grid-template-rows: auto 1fr auto; min-height: calc(297mm - 24mm); }
+      .header { text-align: center; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; }
+      .title { font-size: 16px; font-weight: 700; letter-spacing: .3px; }
+      .subtitle { font-size: 11px; color: #555; margin-top: 2px; }
+      .content { padding: 10px 2px; }
+      .footer { font-size: 10px; color: #666; text-align: left; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+      /* Tables */
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 6px 8px; font-size: 12px; }
+      th { background: #f5f5f5; }
+      /* Utility */
+      .section { margin-bottom: 10px; }
+      .muted { color:#6b7280; }
+      .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .sig-row { display:flex; justify-content: space-between; gap: 24px; margin-top: 24px; }
+      .sig { width: 45%; text-align:center; }
+      .sig .line { border-bottom: 1px solid #333; height: 36px; margin-bottom: 6px; }
+      .small { font-size: 11px; }
+      /* Ensure single page: hide overflow if any */
+      @media print { .page { overflow: hidden; } }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div class="title">${title}</div>
+        <div class="subtitle">${subtitle}</div>
+      </div>
+      <div class="content">${bodyHTML}</div>
+      <div class="footer">${footerHTML}</div>
+    </div>
+  </body>
+  </html>`;
+}
+
+function openPrintA4(html) {
+  const win = window.open('', '_blank');
+  if (!win) { alert('Please allow popups to print.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { try { win.print(); } catch(_){} }, 400);
+}
+
 // ===== Statistics Export/Print Helpers =====
 function setupStatsExports(type) {
   try {
@@ -1899,19 +2176,7 @@ function printStats(chartCanvasId, listContainerId, title, pdf = false) {
   const listContainer = document.getElementById(listContainerId);
   if (!chartCanvas || !listContainer) return;
 
-  const win = window.open('', '_blank');
-  const style = `
-    <style>
-      body { font-family: Arial, Helvetica, sans-serif; color:#111; }
-      h1 { font-size: 18px; margin: 0 0 8px; text-align:center; }
-      .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-      .chart-wrap { display:flex; justify-content:center; }
-      .list-wrap table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
-      th { background:#f5f5f5; }
-      @page { margin: 12mm; }
-      @media print { .controls { display:none } }
-    </style>`;
+  const style = ``;
 
   // Build a simple table from the list content
   const tableHtml = (() => {
@@ -1935,10 +2200,13 @@ function printStats(chartCanvasId, listContainerId, title, pdf = false) {
       <div class="list-wrap">${tableHtml}</div>
     </div>`;
 
-  win.document.write(`<html><head><title>${title}</title>${style}</head><body>${html}</body></html>`);
-  win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 200);
+  const pageHTML = buildA4PrintHTML({
+    title: title || 'RELIEF GOODS DELIVERY RECEIPT',
+    subtitle: 'Municipal Social Welfare and Development Office',
+    bodyHTML: html,
+    footerHTML: `<div>Generated on ${new Date().toLocaleString()}</div>`
+  });
+  openPrintA4(pageHTML);
 }
 
 // ✅ Event Delegation for Edit + Delete buttons in residents table
@@ -1958,6 +2226,15 @@ document.addEventListener("click", async (e) => {
     document.getElementById("editAge").value = r.age || "";
     document.getElementById("editAddressZone").value = r.addressZone || "";
     document.getElementById("editHouseholdNumber").value = r.householdNumber || "";
+    document.getElementById("editHouseMaterial").value = r.houseMaterial || "Concrete";
+    
+    // Auto-populate terrain based on admin-set terrain in user account
+    if (loggedInUserData && loggedInUserData.role === 'barangay') {
+        const terrain = loggedInUserData.terrain || 'Lowland';
+        document.getElementById("editBarangayTerrain").value = terrain;
+    } else {
+        document.getElementById("editBarangayTerrain").value = r.barangayTerrain || "Lowland";
+    }
     document.getElementById("editFamilyMembers").value = r.familyMembers || "";
     document.getElementById("editGender").value = r.gender || "Male";
     document.getElementById("editHouseholdStatus").value = r.householdStatus || "Poor";
@@ -2013,58 +2290,7 @@ function viewBarangayStats(barangayName) {
 // ✅ Expose functions globally for HTML onclick calls
 window.updateDeliveryStatus = updateDeliveryStatus;
 
-// ✅ Add missing functions for account requests
-async function approveRequest(requestId, barangayName) {
-    try {
-        const requestRef = doc(db, "accountRequests", requestId);
-        await updateDoc(requestRef, {
-            status: 'approved',
-            approvedAt: new Date()
-        });
-        
-        // Create user account for the approved barangay if needed (noop if exists)
-        const formatted = String(barangayName || '').toLowerCase().replace(/\s+/g, '');
-        const email = `${formatted}@example.com`;
-        const username = `barangay_${formatted}`;
-        try {
-            const methods = await fetchSignInMethodsForEmail(auth, email);
-            if (!methods || methods.length === 0) {
-                const userCredential = await createUserWithEmailAndPassword(auth, email, 'default123');
-                await createUserInFirestore(userCredential.user.uid, username, email, 'barangay');
-            } else {
-                await createUserInFirestore('already-in-auth', username, email, 'barangay');
-            }
-            showSuccess(`Account approved for ${barangayName}.`);
-        } catch (userError) {
-            console.error('Error creating user account:', userError);
-            showError('Account approved but user creation failed.');
-        }
-        
-        // Refresh the requests list
-        loadPendingRequests();
-    } catch (error) {
-        console.error("Error approving request:", error);
-        showError("Failed to approve request. Please try again.");
-    }
-}
-
-async function declineRequest(requestId) {
-    try {
-        const requestRef = doc(db, "accountRequests", requestId);
-        await updateDoc(requestRef, {
-            status: 'declined',
-            declinedAt: new Date()
-        });
-        
-        showSuccess("Request declined successfully.");
-        
-        // Refresh the requests list
-        loadPendingRequests();
-    } catch (error) {
-        console.error("Error declining request:", error);
-        showError("Failed to decline request. Please try again.");
-    }
-}
+// Old approveRequest and declineRequest functions removed - using new versions with terrain selection
 
 async function viewBarangay(barangayId, barangayName) {
     try {
@@ -2167,6 +2393,8 @@ async function loadResidentsForModal(barangayName) {
                 resident.householdNumber || 'N/A',
                 resident.gender || 'N/A',
                 resident.householdStatus || 'N/A',
+                resident.houseMaterial || 'N/A',
+                resident.barangayTerrain || 'N/A',
                 resident.familyMembers || 'N/A',
                 resident.monthlyIncome ? '₱' + Number(resident.monthlyIncome).toLocaleString() : 'N/A',
                 resident.aidHistory || 'N/A',
@@ -2212,38 +2440,170 @@ async function loadResidentsForModal(barangayName) {
                 const dt = $('#viewResidentsTable').DataTable({
                     order: [[0, 'asc']],
                     dom: 'Bfrtip',
-                    buttons: [
+buttons: [
                         { extend: 'excelHtml5', title: 'Residents', exportOptions: { columns: ':not(.no-export)' } },
-                        { extend: 'pdfHtml5', title: 'Residents', orientation: 'landscape', pageSize: 'A4', exportOptions: { columns: ':not(.no-export)' } },
-                        { extend: 'print', title: 'Residents', customize: function (win) { try { win.document.title = 'Residents'; } catch(_) {} }, exportOptions: { columns: ':not(.no-export)' } }
+                        { extend: 'pdfHtml5', title: 'Residents', pageSize: 'A4',
+                          customize: function (doc) {
+                            // Standardize PDF header/footer
+                            doc.pageMargins = [20, 40, 20, 30];
+                            doc.styles.tableHeader = { bold: true, fillColor: '#f5f5f5' };
+                            doc.content.unshift({ text: 'RELIEF GOODS DELIVERY RECEIPT', style: { bold: true, fontSize: 14 }, alignment: 'center', margin: [0,0,0,6] });
+                            doc.content.unshift({ text: 'Municipal Social Welfare and Development Office', alignment: 'center', fontSize: 10, margin: [0,0,0,12] });
+                          },
+                          exportOptions: { columns: ':not(.no-export)' } },
+                        { extend: 'print', title: 'Residents',
+                          customize: function (win) {
+                            try {
+                              const body = win.document.body;
+                              const content = body.innerHTML;
+                              const wrapper = `
+                                <div class="page">
+                                  <div class="header">
+                                    <div class="title">RELIEF GOODS DELIVERY RECEIPT</div>
+                                    <div class="subtitle">Municipal Social Welfare and Development Office</div>
+                                  </div>
+                                  <div class="content">${content}</div>
+                                  <div class="footer"><div>Generated on ${new Date().toLocaleString()}</div></div>
+                                </div>`;
+                              const style = win.document.createElement('style');
+                              style.innerHTML = `@page { size: A4; margin: 12mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .header{ text-align:center; border-bottom:1px solid #e5e7eb; padding-bottom:8px; } .title{ font-size:16px; font-weight:700;} .subtitle{ font-size:11px; color:#555;} .content{ padding:10px 2px;} .footer{ border-top:1px solid #e5e7eb; padding-top:8px; font-size:10px; color:#666; } table{ width:100%; border-collapse:collapse;} th,td{ border:1px solid #e5e7eb; padding:6px 8px; font-size:12px;} th{ background:#f5f5f5; }`;
+                              body.innerHTML = wrapper;
+                              body.appendChild(style);
+                            } catch(_) {}
+                          },
+                          exportOptions: { columns: ':not(.no-export)' } }
                     ],
                     pageLength: 10
                 });
-                // Move DataTables buttons above the search bar
+                // Move DataTables buttons above the search bar with improved handling
                 try {
                     const wrapper = document.getElementById('viewResidentsTable').closest('.dataTables_wrapper');
                     const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
                     const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
                     const searchSection = document.querySelector('#viewResidentsModal .search-section');
                     const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
+                    
                     if (btns && searchSection) {
+                        // Remove any existing button container to avoid duplicates
+                        const existingBtns = searchSection.querySelector('.dt-buttons');
+                        if (existingBtns && existingBtns !== btns) {
+                            existingBtns.remove();
+                        }
+                        
+                        // Move buttons to search section
                         if (searchBox) {
                             searchSection.insertBefore(btns, searchBox);
                         } else {
                             searchSection.insertBefore(btns, searchSection.firstChild);
                         }
-                        // Layout buttons horizontally with spacing
-                        btns.style.margin = '0 0 8px 0';
-                        btns.style.display = 'flex';
-                        btns.style.gap = '8px';
-                        btns.querySelectorAll('button').forEach(b => {
-                            b.style.display = 'inline-block';
-                            b.style.width = 'auto';
+                        
+                        // Apply enhanced styling and ensure clickability
+                        btns.style.cssText = `
+                            margin: 0 0 12px 0 !important;
+                            display: flex !important;
+                            gap: 8px !important;
+                            flex-wrap: wrap !important;
+                            z-index: 1000 !important;
+                            position: relative !important;
+                        `;
+                        
+                        // Ensure each button is properly styled and clickable
+                        btns.querySelectorAll('button').forEach((button, index) => {
+                            button.style.cssText = `
+                                display: inline-flex !important;
+                                align-items: center !important;
+                                justify-content: center !important;
+                                width: auto !important;
+                                min-height: 36px !important;
+                                padding: 8px 12px !important;
+                                margin: 0 !important;
+                                background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
+                                color: white !important;
+                                border: none !important;
+                                border-radius: 6px !important;
+                                cursor: pointer !important;
+                                font-size: 0.875rem !important;
+                                font-weight: 500 !important;
+                                pointer-events: auto !important;
+                                user-select: none !important;
+                                z-index: 1001 !important;
+                                position: relative !important;
+                                transition: all 0.2s ease !important;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                            `;
+                            
+                            // Add explicit event listeners as a fallback
+                            if (!button.hasAttribute('data-enhanced')) {
+                                button.setAttribute('data-enhanced', 'true');
+                                
+                                // Re-bind click events to ensure they work
+                                const originalClick = button.onclick;
+                                button.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    // Try original handler first
+                                    if (originalClick) {
+                                        try {
+                                            originalClick.call(this, e);
+                                            return; // If original handler works, we're done
+                                        } catch (err) {
+                                            console.warn('Original click handler failed:', err);
+                                        }
+                                    }
+                                    
+                                    // Trigger DataTables button action as fallback
+                                    try {
+                                        if (this.classList.contains('buttons-excel')) {
+                                            console.log('Triggering Excel export...');
+                                            dt.button('.buttons-excel').trigger();
+                                        } else if (this.classList.contains('buttons-pdf')) {
+                                            console.log('Triggering PDF export...');
+                                            dt.button('.buttons-pdf').trigger();
+                                        } else if (this.classList.contains('buttons-print')) {
+                                            console.log('Triggering print...');
+                                            dt.button('.buttons-print').trigger();
+                                        } else {
+                                            // Try to find the button by index if class detection fails
+                                            const allButtons = btns.querySelectorAll('button');
+                                            const buttonIndex = Array.from(allButtons).indexOf(this);
+                                            if (buttonIndex >= 0) {
+                                                console.log('Triggering button by index:', buttonIndex);
+                                                dt.button(buttonIndex).trigger();
+                                            }
+                                        }
+                                    } catch (dtErr) {
+                                        console.error('DataTables button trigger failed:', dtErr);
+                                        // Last resort: try to manually trigger export functions
+                                        if (this.textContent.toLowerCase().includes('excel')) {
+                                            alert('Excel export would be triggered here');
+                                        } else if (this.textContent.toLowerCase().includes('pdf')) {
+                                            alert('PDF export would be triggered here');
+                                        } else if (this.textContent.toLowerCase().includes('print')) {
+                                            window.print();
+                                        }
+                                    }
+                                }, { passive: false });
+                                
+                                // Add hover effects
+                                button.addEventListener('mouseenter', function() {
+                                    this.style.transform = 'translateY(-1px)';
+                                    this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                                });
+                                
+                                button.addEventListener('mouseleave', function() {
+                                    this.style.transform = 'translateY(0)';
+                                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                                });
+                            }
                         });
                     }
+                    
                     // Hide DataTables' built-in search; we'll keep the custom one above
                     if (filter) { filter.style.display = 'none'; }
-                } catch(_) {}
+                } catch(err) {
+                    console.warn('Error enhancing DataTables buttons:', err);
+                }
             }
         } catch (e) { console.warn('DataTable init (modal) failed:', e); }
         
@@ -2315,7 +2675,7 @@ async function loadPendingRequests() {
         const q = query(requestsRef, where("status", "==", "pending"));
         const snapshot = await getDocs(q);
         
-        const tableBody = document.getElementById("accountRequestsTableBody");
+        const tableBody = document.getElementById("requestsTableBody");
         if (!tableBody) {
             console.warn("Account requests table body not found");
             return;
@@ -2326,7 +2686,7 @@ async function loadPendingRequests() {
         if (snapshot.empty) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="4" style="text-align:center;">No pending requests.</td>
+                    <td colspan="6" style="text-align:center;">No pending requests.</td>
                 </tr>`;
             return;
         }
@@ -2334,14 +2694,23 @@ async function loadPendingRequests() {
         snapshot.forEach((docSnap) => {
             const req = docSnap.data();
             const row = document.createElement("tr");
+            const requestDate = req.dateRequested ? new Date(req.dateRequested.seconds * 1000).toLocaleDateString() : 'Unknown';
             
             row.innerHTML = `
                 <td>${req.barangayName || 'Unknown'}</td>
-                <td>${req.email || 'No email'}</td>
-                <td>${req.message || 'No message'}</td>
+                <td>${req.email || 'No email provided'}</td>
+                <td>${req.contact || 'No contact provided'}</td>
+                <td style="max-width: 200px; word-wrap: break-word;">${req.message || 'No message provided'}</td>
+                <td>${requestDate}</td>
                 <td>
-                    <button onclick="approveRequest('${docSnap.id}', '${req.barangayName}')">Approve</button>
-                    <button onclick="declineRequest('${docSnap.id}')">Decline</button>
+                    <button onclick="showApproveModal('${docSnap.id}', '${req.barangayName}', '${req.email}', '${req.contact}')" class="action-button primary-btn" style="margin-right: 8px;">
+                        <span class="material-icons">check</span>
+                        <span>Approve</span>
+                    </button>
+                    <button onclick="declineRequest('${docSnap.id}')" class="action-button" style="background: #ef4444; color: white;">
+                        <span class="material-icons">close</span>
+                        <span>Decline</span>
+                    </button>
                 </td>
             `;
             
@@ -2354,6 +2723,114 @@ async function loadPendingRequests() {
 }
 
 // ✅ Expose all functions globally
+// Show approval modal with terrain selection
+function showApproveModal(requestId, barangayName, email, contact) {
+    const modal = document.getElementById('approveAccountModal');
+    if (!modal) return;
+    
+    // Populate the form with request data
+    document.getElementById('approveRequestId').value = requestId;
+    document.getElementById('approveBarangayName').value = barangayName;
+    document.getElementById('approveEmail').value = email;
+    document.getElementById('approveContact').value = contact;
+    
+    // Clear previous selections
+    document.getElementById('approveTerrain').value = '';
+    document.getElementById('approvePassword').value = '';
+    
+    // Show the modal
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
+}
+
+// Close approval modal
+function closeApproveModal() {
+    const modal = document.getElementById('approveAccountModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
+        modal.style.opacity = '0';
+        modal.style.pointerEvents = 'none';
+        
+        // Clear form
+        document.getElementById('approveAccountForm').reset();
+    }
+}
+
+// Updated approve request function
+async function approveRequest(requestId, barangayName, terrain, password) {
+    try {
+        // Create the user account using same email format as existing system
+        const formattedBarangay = barangayName.toLowerCase().replace(/\s+/g, '');
+        const email = `${formattedBarangay}@example.com`;
+        const username = `barangay_${formattedBarangay}`;
+        
+        // Check if user already exists first
+        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+        let userCredential;
+        
+        if (signInMethods.length > 0) {
+            // User already exists in Auth, just create Firestore document
+            await createUserInFirestore('already-in-auth', username, email, "barangay");
+        } else {
+            // Create new user account
+            userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            
+            // Create user document with terrain info
+            await setDoc(doc(db, 'users', userCredential.user.uid), {
+                uid: userCredential.user.uid,
+                username: username,
+                email: email,
+                role: 'barangay',
+                barangayName: barangayName,
+                terrain: terrain,  // Store terrain with user account
+                contact: document.getElementById('approveContact').value,
+                approved: true,
+                dateApproved: new Date(),
+                createdAt: new Date(),
+                isFirstLogin: true
+            });
+        }
+        
+        // Update the request status
+        await updateDoc(doc(db, 'accountRequests', requestId), {
+            status: 'approved',
+            dateApproved: new Date(),
+            approvedTerrain: terrain
+        });
+        
+        showSuccess(`Account approved for ${barangayName} with ${terrain} terrain`);
+        closeApproveModal();
+        loadPendingRequests(); // Refresh the requests list
+        
+    } catch (error) {
+        console.error('Error approving request:', error);
+        showError('Failed to approve request: ' + error.message);
+    }
+}
+
+// Decline request function
+async function declineRequest(requestId) {
+    if (!confirm('Are you sure you want to decline this request?')) {
+        return;
+    }
+    
+    try {
+        await deleteDoc(doc(db, "accountRequests", requestId));
+        showSuccess('Request declined successfully');
+        loadPendingRequests(); // Refresh the requests list
+    } catch (error) {
+        console.error('Error declining request:', error);
+        showError('Failed to decline request: ' + error.message);
+    }
+}
+
+window.showApproveModal = showApproveModal;
+window.closeApproveModal = closeApproveModal;
 window.approveRequest = approveRequest;
 window.declineRequest = declineRequest;
 window.viewBarangay = viewBarangay;
@@ -2638,54 +3115,111 @@ async function generateSummaryReport() {
             }
         });
         
-        // Create summary HTML
+        // Create summary HTML using standardized template
         const summaryHtml = `
-            <div style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2>Relief Operation Summary Report</h2>
-                <p><strong>Operation:</strong> ${activeBatch.name}</p>
-                <p><strong>Period:</strong> ${activeBatch.periodLabel}</p>
-                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-                
-                <h3>Current Inventory</h3>
-                <table border="1" cellpadding="8" cellspacing="0">
+            <div class="section">
+                <div class="grid-2">
+                    <table>
+                        <tr><th>Operation:</th><td>${activeBatch.name}</td></tr>
+                        <tr><th>Period:</th><td>${activeBatch.periodLabel}</td></tr>
+                        <tr><th>Total Transactions:</th><td>${logs.length}</td></tr>
+                    </table>
+                    <div></div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="small" style="font-weight:700;margin-bottom:6px;">Current Inventory</div>
+                <table>
                     <tr><th>Item</th><th>Current Stock</th></tr>
                     <tr><td>Rice (sacks)</td><td>${totals.rice}</td></tr>
                     <tr><td>Biscuits (boxes)</td><td>${totals.biscuits}</td></tr>
                     <tr><td>Canned Goods (boxes)</td><td>${totals.canned}</td></tr>
                     <tr><td>Shirts (packs)</td><td>${totals.shirts}</td></tr>
                 </table>
-                
-                <h3>Stock Received</h3>
-                <table border="1" cellpadding="8" cellspacing="0">
-                    <tr><th>Item</th><th>Total Received</th></tr>
-                    <tr><td>Rice (sacks)</td><td>${stockIn.rice}</td></tr>
-                    <tr><td>Biscuits (boxes)</td><td>${stockIn.biscuits}</td></tr>
-                    <tr><td>Canned Goods (boxes)</td><td>${stockIn.canned}</td></tr>
-                    <tr><td>Shirts (packs)</td><td>${stockIn.shirts}</td></tr>
-                </table>
-                
-                <h3>Deliveries Made</h3>
-                <table border="1" cellpadding="8" cellspacing="0">
-                    <tr><th>Item</th><th>Total Delivered</th></tr>
-                    <tr><td>Rice (sacks)</td><td>${deliveries.rice}</td></tr>
-                    <tr><td>Biscuits (boxes)</td><td>${deliveries.biscuits}</td></tr>
-                    <tr><td>Canned Goods (boxes)</td><td>${deliveries.canned}</td></tr>
-                    <tr><td>Shirts (packs)</td><td>${deliveries.shirts}</td></tr>
-                </table>
-                
-                <p><em>Total Transactions: ${logs.length}</em></p>
+            </div>
+            
+            <div class="section">
+                <div class="grid-2">
+                    <div>
+                        <div class="small" style="font-weight:700;margin-bottom:6px;">Stock Received</div>
+                        <table>
+                            <tr><th>Item</th><th>Total Received</th></tr>
+                            <tr><td>Rice (sacks)</td><td>${stockIn.rice}</td></tr>
+                            <tr><td>Biscuits (boxes)</td><td>${stockIn.biscuits}</td></tr>
+                            <tr><td>Canned Goods (boxes)</td><td>${stockIn.canned}</td></tr>
+                            <tr><td>Shirts (packs)</td><td>${stockIn.shirts}</td></tr>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="small" style="font-weight:700;margin-bottom:6px;">Deliveries Made</div>
+                        <table>
+                            <tr><th>Item</th><th>Total Delivered</th></tr>
+                            <tr><td>Rice (sacks)</td><td>${deliveries.rice}</td></tr>
+                            <tr><td>Biscuits (boxes)</td><td>${deliveries.biscuits}</td></tr>
+                            <tr><td>Canned Goods (boxes)</td><td>${deliveries.canned}</td></tr>
+                            <tr><td>Shirts (packs)</td><td>${deliveries.shirts}</td></tr>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
         
-        // Open in new window for printing
+        // Use standardized A4 template for printing
+        const pageHTML = buildA4PrintHTML({
+            title: 'RELIEF OPERATION SUMMARY REPORT',
+            subtitle: 'Municipal Social Welfare and Development Office',
+            bodyHTML: summaryHtml,
+            footerHTML: `<div class="small">This is an official summary report. Generated on ${new Date().toLocaleString()}.</div>`
+        });
+        
         const printWindow = window.open('', '_blank');
-        printWindow.document.write(summaryHtml);
-        printWindow.document.close();
-        printWindow.print();
+        
+        if (!printWindow) {
+            // Popup blocked - fallback to download as HTML file
+            const blob = new Blob([pageHTML], { type: 'text/html' });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Relief_Summary_${new Date().toISOString().split('T')[0]}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showSuccess('Summary report downloaded as HTML file.');
+            return;
+        }
+        
+        try {
+            printWindow.document.write(pageHTML);
+            printWindow.document.close();
+            printWindow.focus();
+            
+            // Wait a bit for content to load, then print
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
+        } catch (docError) {
+            printWindow.close();
+            throw new Error('Failed to write to print window: ' + docError.message);
+        }
         
     } catch (error) {
         console.error('Error generating summary report:', error);
-        showError('Failed to generate summary report.');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Failed to generate summary report.';
+        if (error.message.includes('popup') || error.message.includes('blocked')) {
+            errorMessage = 'Popup blocked. Please allow popups for this site and try again.';
+        } else if (error.message.includes('print window')) {
+            errorMessage = 'Cannot open print window. Please check your browser settings.';
+        } else if (error.message.includes('document')) {
+            errorMessage = 'Browser security settings prevent opening the report. Please try downloading it instead.';
+        }
+        
+        showError(errorMessage);
     }
 }
 
@@ -2715,13 +3249,13 @@ async function showDeliveryHistory() {
         historyBody.innerHTML = '';
         
         if (deliveries.length === 0) {
-            historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No delivery history found.</td></tr>';
+            historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No delivery history found.</td></tr>';
         } else {
             // Filter for received/completed deliveries
             const completedDeliveries = deliveries.filter(d => d.status === 'Received' || d.status === 'Delivered');
             
             if (completedDeliveries.length === 0) {
-                historyBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No completed deliveries yet.</td></tr>';
+                historyBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No completed deliveries yet.</td></tr>';
             } else {
                 completedDeliveries.forEach(delivery => {
                     const row = document.createElement('tr');
@@ -2729,28 +3263,170 @@ async function showDeliveryHistory() {
                     // Safely handle dates
                     const deliveryDate = safeToDate(delivery.deliveryDate);
                     const updatedAt = safeToDate(delivery.updatedAt);
+                    const preferredTime = delivery.preferredTime || 'Anytime';
                     
-                    // Format items received
+                    // Format items received with enhanced display
                     let itemsReceived = 'N/A';
                     if (delivery.goods) {
                         const items = [];
-                        if (delivery.goods.rice) items.push(`Rice: ${delivery.goods.rice}`);
-                        if (delivery.goods.biscuits) items.push(`Biscuits: ${delivery.goods.biscuits}`);
-                        if (delivery.goods.canned) items.push(`Canned: ${delivery.goods.canned}`);
-                        if (delivery.goods.shirts) items.push(`Shirts: ${delivery.goods.shirts}`);
-                        itemsReceived = items.join(', ');
+                        if (delivery.goods.rice) items.push(`🌾 ${delivery.goods.rice} Rice`);
+                        if (delivery.goods.biscuits) items.push(`🍪 ${delivery.goods.biscuits} Biscuits`);
+                        if (delivery.goods.canned) items.push(`🥫 ${delivery.goods.canned} Canned`);
+                        if (delivery.goods.shirts) items.push(`👕 ${delivery.goods.shirts} Shirts`);
+                        itemsReceived = items.join('<br>');
+                    }
+                    
+                    // Priority with badge
+                    const priority = delivery.priority || 'Normal';
+                    const priorityClass = priority.toLowerCase().replace(' ', '-');
+                    const priorityIcon = priority === 'Urgent' ? '🔴' : priority === 'High' ? '🟠' : '🟢';
+                    const priorityBadge = `<span class="priority-badge priority-${priorityClass}"><span class="priority-icon">${priorityIcon}</span> ${priority}</span>`;
+                    
+                    // Details with notes
+                    let detailsDisplay = delivery.details || 'No details';
+                    if (delivery.notes) {
+                        detailsDisplay += `<br><small class="notes-text">📋 ${delivery.notes}</small>`;
                     }
                     
                     row.innerHTML = `
-                        <td>${deliveryDate.toLocaleDateString()}</td>
-                        <td>${delivery.details || 'No details'}</td>
-                        <td>${itemsReceived}</td>
-                        <td><span class="status-badge status-${delivery.status?.toLowerCase()}">${delivery.status}</span></td>
+                        <td>
+                            <div class="date-info">
+                                <span class="date-text">${deliveryDate.toLocaleDateString()}</span>
+                                <span class="time-text">${preferredTime}</span>
+                            </div>
+                        </td>
+                        <td><div class="items-content">${itemsReceived}</div></td>
+                        <td>${priorityBadge}</td>
+                        <td><span class="status-badge status-${delivery.status?.toLowerCase().replace(' ', '-')}">${delivery.status}</span></td>
+                        <td><div class="details-content">${detailsDisplay}</div></td>
                         <td>${updatedAt.toLocaleDateString()}</td>
                     `;
                     historyBody.appendChild(row);
                 });
             }
+        }
+        
+        // Initialize DataTable for delivery history with export buttons
+        try {
+            if (window.jQuery && $('#deliveryHistoryTable').length) {
+                if ($.fn.dataTable.isDataTable('#deliveryHistoryTable')) {
+                    $('#deliveryHistoryTable').DataTable().destroy();
+                }
+                const dt = $('#deliveryHistoryTable').DataTable({
+                    order: [[0, 'desc']], // Most recent first
+                    dom: 'Bfrtip',
+                    buttons: [
+                        { extend: 'excelHtml5', title: 'Delivery History', text: 'Excel', exportOptions: { columns: ':not(.no-export)' } },
+                        { extend: 'pdfHtml5', title: 'Delivery History', text: 'PDF', pageSize: 'A4',
+                          customize: function (doc) {
+                            doc.pageMargins = [20, 40, 20, 30];
+                            doc.styles.tableHeader = { bold: true, fillColor: '#f5f5f5' };
+                            doc.content.unshift({ text: 'DELIVERY HISTORY REPORT', style: { bold: true, fontSize: 14 }, alignment: 'center', margin: [0,0,0,6] });
+                            doc.content.unshift({ text: 'Municipal Social Welfare and Development Office', alignment: 'center', fontSize: 10, margin: [0,0,0,12] });
+                          },
+                          exportOptions: { columns: ':not(.no-export)' } },
+                        { extend: 'print', title: 'Delivery History', text: 'Print',
+                          customize: function (win) {
+                            try {
+                              const body = win.document.body;
+                              const content = body.innerHTML;
+                              const wrapper = `
+                                <div class="page">
+                                  <div class="header">
+                                    <div class="title">DELIVERY HISTORY REPORT</div>
+                                    <div class="subtitle">Municipal Social Welfare and Development Office</div>
+                                  </div>
+                                  <div class="content">${content}</div>
+                                  <div class="footer"><div>Generated on ${new Date().toLocaleString()}</div></div>
+                                </div>`;
+                              const style = win.document.createElement('style');
+                              style.innerHTML = `@page { size: A4; margin: 12mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .header{ text-align:center; border-bottom:1px solid #e5e7eb; padding-bottom:8px; } .title{ font-size:16px; font-weight:700;} .subtitle{ font-size:11px; color:#555;} .content{ padding:10px 2px;} .footer{ border-top:1px solid #e5e7eb; padding-top:8px; font-size:10px; color:#666; } table{ width:100%; border-collapse:collapse;} th,td{ border:1px solid #e5e7eb; padding:6px 8px; font-size:12px;} th{ background:#f5f5f5; } .priority-badge{ padding:2px 6px; border-radius:8px; font-size:10px; } .date-info{ font-size:11px; } .time-text{ color:#666; }`;
+                              body.innerHTML = wrapper;
+                              body.appendChild(style);
+                            } catch(_) {}
+                          },
+                          exportOptions: { columns: ':not(.no-export)' } }
+                    ],
+                    pageLength: 10
+                });
+                
+                // Move DataTables buttons to search section
+                setTimeout(() => {
+                    try {
+                        const wrapper = document.getElementById('deliveryHistoryTable').closest('.dataTables_wrapper');
+                        const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
+                        const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
+                        const searchSection = document.getElementById('historySearchSection');
+                        const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
+                        
+                        if (btns && searchSection) {
+                            // Remove any existing button container
+                            const existingBtns = searchSection.querySelector('.dt-buttons');
+                            if (existingBtns && existingBtns !== btns) {
+                                existingBtns.remove();
+                            }
+                            
+                            // Move buttons to search section
+                            if (searchBox) {
+                                searchSection.insertBefore(btns, searchBox);
+                            } else {
+                                searchSection.insertBefore(btns, searchSection.firstChild);
+                            }
+                            
+                            // Apply consistent styling
+                            btns.style.cssText = `
+                                margin: 0 0 12px 0 !important;
+                                display: flex !important;
+                                gap: 8px !important;
+                                flex-wrap: wrap !important;
+                                z-index: 1000 !important;
+                                position: relative !important;
+                            `;
+                            
+                            // Style each button
+                            btns.querySelectorAll('button').forEach((button, index) => {
+                                button.style.cssText = `
+                                    display: inline-flex !important;
+                                    align-items: center !important;
+                                    justify-content: center !important;
+                                    width: auto !important;
+                                    min-height: 36px !important;
+                                    padding: 8px 12px !important;
+                                    margin: 0 !important;
+                                    background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
+                                    color: white !important;
+                                    border: none !important;
+                                    border-radius: 6px !important;
+                                    cursor: pointer !important;
+                                    font-size: 0.875rem !important;
+                                    font-weight: 500 !important;
+                                    pointer-events: auto !important;
+                                    user-select: none !important;
+                                    z-index: 1001 !important;
+                                    position: relative !important;
+                                    transition: all 0.2s ease !important;
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                                `;
+                            });
+                        }
+                        
+                        // Hide DataTables' built-in search and use our custom search
+                        if (filter) { filter.style.display = 'none'; }
+                        
+                        // Setup custom search functionality
+                        const customSearchInput = document.getElementById('historySearchInput');
+                        if (customSearchInput) {
+                            customSearchInput.addEventListener('input', function() {
+                                dt.search(this.value).draw();
+                            });
+                        }
+                    } catch(err) {
+                        console.warn('Error enhancing delivery history DataTables:', err);
+                    }
+                }, 100);
+            }
+        } catch (e) { 
+            console.warn('DataTable init (delivery history) failed:', e); 
         }
         
         // Show modal
@@ -2994,17 +3670,38 @@ function printBarangayDeliveryReceipt(deliveryId, deliveryData) {
         </html>
     `;
     
-    // Open in new window and print
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(receiptHtml);
-    printWindow.document.close();
-    
-    // Wait for content to load then print
-    printWindow.onload = function() {
-        setTimeout(() => {
-            printWindow.print();
-        }, 500);
-    };
+// Open in new window using standardized A4 template
+    const pageHTML = buildA4PrintHTML({
+        title: 'RELIEF GOODS DELIVERY RECEIPT',
+        subtitle: 'Municipal Social Welfare and Development Office',
+        bodyHTML: `
+            <div class="section">
+                <div class="grid-2">
+                    <table>
+                        <tr><th>Receipt ID:</th><td>${deliveryId.substring(0, 8).toUpperCase()}</td></tr>
+                        <tr><th>Barangay:</th><td>${barangayName}</td></tr>
+                        <tr><th>Delivery Date:</th><td>${deliveryDate.toLocaleDateString()}</td></tr>
+                        <tr><th>Received Date:</th><td>${receivedDate.toLocaleDateString()}</td></tr>
+                        <tr><th>Status:</th><td>${deliveryData.status || 'Pending'}</td></tr>
+                    </table>
+                    <div class="section">
+                        <div class="small muted">Description:</div>
+                        <div style="margin-top:6px; padding:10px; background:#fff; border:1px solid #e5e7eb; border-radius:4px; min-height:60px;">${deliveryData.details || 'No description provided'}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="small" style="font-weight:700;margin-bottom:6px;">Items Received</div>
+                <div>${goodsList.length > 0 ? goodsList.map(item => `<div class="small">• ${item}</div>`).join('') : '<div class="small muted">No specific items listed</div>'}</div>
+            </div>
+            <div class="sig-row">
+                <div class="sig"><div class="line"></div><div>MSWD Representative</div><div class="muted small">Signature over Printed Name</div></div>
+                <div class="sig"><div class="line"></div><div>Barangay Representative</div><div class="muted small">Signature over Printed Name</div></div>
+            </div>
+        `,
+        footerHTML: `<div class="small">This is an official receipt for relief goods delivery. Generated on ${new Date().toLocaleString()}.</div>`
+    });
+    openPrintA4(pageHTML);
 }
 
 // Expose functions globally

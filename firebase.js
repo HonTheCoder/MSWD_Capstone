@@ -64,14 +64,15 @@ export async function createUserInFirestore(uid, username, email, role = 'barang
 }
 
 // ✅ Request Account (Barangay request)
-export async function requestAccount(barangayName, email, message) {
+export async function requestAccount(barangayName, email, contact, message) {
     try {
         await addDoc(collection(db, "accountRequests"), {
             barangayName,
             email,
+            contact,
             message,
             status: 'pending',
-            timestamp: serverTimestamp()
+            dateRequested: serverTimestamp()
         });
         console.log("✅ Account request submitted.");
         return true;

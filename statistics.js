@@ -54,20 +54,7 @@
     const listContainer = document.getElementById(listContainerId);
     if (!chartCanvas || !listContainer) return;
 
-    const win = window.open('', '_blank');
-    const style = `
-      <style>
-        body { font-family: Arial, Helvetica, sans-serif; color:#111; }
-        h1 { font-size: 18px; margin: 0 0 8px; text-align:center; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
-        .chart-wrap { display:flex; justify-content:center; }
-        .list-wrap table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
-        th { background:#f5f5f5; }
-        @page { margin: 12mm; size: A4 landscape; }
-        @media print { .controls { display:none } }
-      </style>`;
-
+    // Build table from list data
     const rows = listContainer.querySelectorAll('li');
     let tableHtml = '<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>';
     rows.forEach(li => {
@@ -77,18 +64,41 @@
     });
     tableHtml += '</tbody></table>';
 
+    // Get chart as image
     const dataUrl = chartCanvas.toDataURL('image/png');
-    const html = `
-      <h1>${title}</h1>
-      <div class="grid">
-        <div class="chart-wrap"><img src="${dataUrl}" style="max-width:700px;width:100%;"/></div>
-        <div class="list-wrap">${tableHtml}</div>
-      </div>`;
+    
+    // Build content using standardized template
+    const bodyHTML = `
+      <div class="section">
+        <div style="text-align:center; margin-bottom:16px;">
+          <img src="${dataUrl}" style="max-width:100%; height:auto; border:1px solid #e5e7eb; border-radius:4px;" alt="Chart"/>
+        </div>
+      </div>
+      <div class="section">
+        <div class="small" style="font-weight:700;margin-bottom:6px;">${title} Data</div>
+        ${tableHtml}
+      </div>
+    `;
 
-    win.document.write(`<html><head><title>${title}</title>${style}</head><body>${html}</body></html>`);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 200);
+    // Use the buildA4PrintHTML function from app.js if available
+    if (typeof window.buildA4PrintHTML === 'function' && typeof window.openPrintA4 === 'function') {
+      const pageHTML = window.buildA4PrintHTML({
+        title: title || 'STATISTICS REPORT',
+        subtitle: 'Municipal Social Welfare and Development Office',
+        bodyHTML: bodyHTML,
+        footerHTML: `<div class="small">This is an official statistics report. Generated on ${new Date().toLocaleString()}.</div>`
+      });
+      window.openPrintA4(pageHTML);
+    } else {
+      // Fallback to original method if buildA4PrintHTML is not available
+      const win = window.open('', '_blank');
+      const style = `<style>@page{size:A4;margin:12mm;}body{font-family:Arial,sans-serif;color:#111;}.chart-wrap{display:flex;justify-content:center;margin:16px 0;}table{width:100%;border-collapse:collapse;margin:10px 0;}th,td{border:1px solid #e5e7eb;padding:6px 8px;font-size:12px;}th{background:#f5f5f5;}</style>`;
+      const html = `<h1 style="text-align:center;">${title}</h1><div class="chart-wrap"><img src="${dataUrl}" style="max-width:700px;width:100%;"/></div>${tableHtml}`;
+      win.document.write(`<html><head><title>${title}</title>${style}</head><body>${html}</body></html>`);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 200);
+    }
   }
 
   window.setupStatsExports = function(type) {
