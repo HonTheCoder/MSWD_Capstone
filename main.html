@@ -1366,43 +1366,6 @@
                             </div>
                         </div>
                         
-                        <!-- Priority and Notes Section -->
-                        <div class="form-row">
-                            <div class="form-group field-priority">
-                                <label for="deliveryPriority">
-                                    <span class="label-icon">⚡</span>
-                                    Delivery Priority
-                                </label>
-                                <select id="deliveryPriority" required>
-                                    <option value="Normal">Normal</option>
-                                    <option value="High">High Priority</option>
-                                    <option value="Urgent">Urgent</option>
-                                </select>
-                            </div>
-                            <div class="form-group field-time">
-                                <label for="deliveryTime">
-                                    <span class="label-icon">🕐</span>
-                                    Preferred Time
-                                </label>
-                                <select id="deliveryTime">
-                                    <option value="Morning">Morning (8AM-12PM)</option>
-                                    <option value="Afternoon">Afternoon (1PM-5PM)</option>
-                                    <option value="Anytime">Anytime</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group field-notes">
-                            <label for="deliveryNotes">
-                                <span class="label-icon">📋</span>
-                                Special Instructions/Notes
-                            </label>
-                            <textarea 
-                                id="deliveryNotes" 
-                                rows="3" 
-                                placeholder="Any special instructions, contact information, or notes for the delivery team..."
-                            ></textarea>
-                        </div>
                         
                         <div class="form-actions">
                             <button type="submit" class="submit-btn">
@@ -1452,25 +1415,6 @@
                                 </select>
                             </div>
                             
-                            <div class="filter-group">
-                                <label for="priorityFilter">Priority:</label>
-                                <select id="priorityFilter">
-                                    <option value="">All Priorities</option>
-                                    <option value="Normal">Normal</option>
-                                    <option value="High">High Priority</option>
-                                    <option value="Urgent">Urgent</option>
-                                </select>
-                            </div>
-                            
-                            <div class="filter-group">
-                                <label for="timeFilter">Preferred Time:</label>
-                                <select id="timeFilter">
-                                    <option value="">All Times</option>
-                                    <option value="Morning">Morning (8AM-12PM)</option>
-                                    <option value="Afternoon">Afternoon (1PM-5PM)</option>
-                                    <option value="Anytime">Anytime</option>
-                                </select>
-                            </div>
                             
                             <button id="clearFilters" class="clear-filters-btn">
                                 <span class="btn-icon">🔄</span>
@@ -1496,16 +1440,12 @@
                                         Items & Quantity
                                     </th>
                                     <th>
-                                        <span class="th-icon">⚡</span>
-                                        Priority
+                                        <span class="th-icon">📏</span>
+                                        Details
                                     </th>
                                     <th>
                                         <span class="th-icon">📊</span>
                                         Status
-                                    </th>
-                                    <th>
-                                        <span class="th-icon">📝</span>
-                                        Details
                                     </th>
                                     <th>
                                         <span class="th-icon">⚙️</span>
@@ -1547,10 +1487,26 @@
                         <table id="barangayDeliveriesTable">
                             <thead>
                                 <tr>
-                                    <th>Delivery Date</th>
-                                    <th>Details</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
+                                    <th>
+                                        <span class="th-icon">📅</span>
+                                        Date & Time
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">📦</span>
+                                        Items & Quantity
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">📏</span>
+                                        Details
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">📊</span>
+                                        Status
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">⚙️</span>
+                                        Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="deliveriesTableBody"></tbody>

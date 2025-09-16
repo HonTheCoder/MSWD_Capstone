@@ -520,7 +520,7 @@ function loadBarangayDeliveries(barangay) {
         if (snapshot.empty) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="4" style="text-align:center;">No deliveries scheduled yet.</td>
+                    <td colspan="5" style="text-align:center;">No deliveries scheduled yet.</td>
                 </tr>`;
             return;
         }
@@ -546,9 +546,25 @@ function loadBarangayDeliveries(barangay) {
             const hasExpandableDetails = goodsItems.length > 0 || (d.details && d.details.length > 40);
             
             // Create table cells
+            // Date & Time Column
             const tdDate = document.createElement('td');
-            tdDate.textContent = dateStr;
+            tdDate.innerHTML = `
+                <div class="date-cell">
+                    <span class="date-icon">📅</span>
+                    <span class="date-text">${dateStr}</span>
+                </div>
+            `;
             
+            // Items & Quantity Column 
+            const tdItems = document.createElement('td');
+            const itemsSummary = goodsItems.length > 0 ? goodsItems.join('<br>') : 'No items specified';
+            tdItems.innerHTML = `
+                <div class="items-cell">
+                    <div class="items-content">${itemsSummary}</div>
+                </div>
+            `;
+            
+            // Details Column
             const tdDetails = document.createElement('td');
             tdDetails.innerHTML = `
                 <div class="details-cell" ${hasExpandableDetails ? `onclick="toggleBarangayDeliveryDetails('${docSnap.id}')" style="cursor: pointer;"` : ''}>
@@ -558,18 +574,24 @@ function loadBarangayDeliveries(barangay) {
                             ${detailsPreview}
                             ${hasExpandableDetails ? '<span class="expand-indicator">▼</span>' : ''}
                         </div>
-                        <div class="goods-preview" title="${goodsItems.join(', ')}">
-                            <span class="goods-icon">📦</span>
-                            ${goodsPreview || 'No items'}
-                        </div>
                     </div>
                 </div>
             `;
             
+            // Status Column
             const tdStatus = document.createElement('td');
-            tdStatus.textContent = d.status || 'Pending';
+            const statusClass = getStatusClass(d.status || 'Pending');
+            tdStatus.innerHTML = `
+                <div class="status-cell">
+                    <span class="status-badge ${statusClass}">
+                        <span class="status-icon">${getStatusIcon(d.status || 'Pending')}</span>
+                        <span class="status-text">${d.status || 'Pending'}</span>
+                    </span>
+                </div>
+            `;
             
             row.appendChild(tdDate);
+            row.appendChild(tdItems);
             row.appendChild(tdDetails);
             row.appendChild(tdStatus);
             const tdBtn = document.createElement('td');
@@ -630,7 +652,7 @@ function loadBarangayDeliveries(barangay) {
                 expandRow.id = `barangay-details-row-${docSnap.id}`;
                 
                 const expandCell = document.createElement("td");
-                expandCell.colSpan = 4; // 4 columns for barangay table
+                expandCell.colSpan = 5; // 5 columns for barangay table: Date, Items, Details, Status, Actions
                 expandCell.innerHTML = `
                     <div class="expanded-content">
                         <div class="full-details">
@@ -766,21 +788,13 @@ async function handleScheduleDelivery() {
         const deliveryId = `${barangay}-${deliveryDate}-${Date.now()}`;
         console.log('Creating delivery:', deliveryId);
 
-        // Get new delivery fields
-        const priority = document.getElementById("deliveryPriority").value || "Normal";
-        const preferredTime = document.getElementById("deliveryTime").value || "Anytime";
-        const notes = document.getElementById("deliveryNotes").value || "";
-        
-        // Save delivery with enhanced data
+        // Save delivery with basic data
         await addDoc(collection(db, 'deliveries'), {
             deliveryId, // Add unique ID
             barangay,
             deliveryDate: Timestamp.fromDate(new Date(deliveryDate)),
             details: deliveryDetails,
             goods,
-            priority,
-            preferredTime,
-            notes,
             status: 'Pending',
             timestamp: serverTimestamp(),
             createdBy: loggedInUserData?.username || 'Admin'
@@ -843,9 +857,6 @@ function loadAllDeliveriesForAdmin() {
                 deliveryDate: delivery.deliveryDate?.toDate?.() || null,
                 details: delivery.details || "No Details",
                 status: delivery.status || "Pending",
-                priority: delivery.priority || "Normal",
-                preferredTime: delivery.preferredTime || "Anytime",
-                notes: delivery.notes || "",
                 rawData: delivery
             });
         });
@@ -886,18 +897,16 @@ function renderDeliveries(deliveries) {
         `;
         row.appendChild(tdBarangay);
 
-        // Delivery Date with enhanced styling including time
+        // Delivery Date with enhanced styling
         const tdDate = document.createElement("td");
         const deliveryDate = delivery.deliveryDate;
         const dateText = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
-        const timeText = delivery.rawData?.preferredTime || "Anytime";
         const dateClass = deliveryDate && deliveryDate < new Date() ? "past-date" : "future-date";
         tdDate.innerHTML = `
             <div class="date-cell ${dateClass}">
                 <span class="date-icon">📅</span>
                 <div class="date-info">
                     <span class="date-text">${dateText}</span>
-                    <span class="time-text">${timeText}</span>
                 </div>
             </div>
         `;
@@ -922,36 +931,19 @@ function renderDeliveries(deliveries) {
         `;
         row.appendChild(tdItems);
         
-        // Priority Column
-        const tdPriority = document.createElement("td");
-        const priority = delivery.rawData?.priority || "Normal";
-        const priorityClass = priority.toLowerCase().replace(' ', '-');
-        const priorityIcon = priority === 'Urgent' ? '🔴' : priority === 'High' ? '🟠' : '🟢';
-        tdPriority.innerHTML = `
-            <div class="priority-cell">
-                <span class="priority-badge priority-${priorityClass}">
-                    <span class="priority-icon">${priorityIcon}</span>
-                    <span class="priority-text">${priority}</span>
-                </span>
-            </div>
-        `;
-        row.appendChild(tdPriority);
-        
-        // Details Column (now includes notes)
+        // Details Column  
         const tdDetails = document.createElement("td");
         const detailsPreview = delivery.details.length > 40 ? delivery.details.substring(0, 40) + '...' : delivery.details;
-        const notes = delivery.rawData?.notes || '';
-        const hasExpandedDetails = notes.length > 0 || delivery.details.length > 50;
+        const hasExpandedDetails = delivery.details.length > 50;
         
         tdDetails.innerHTML = `
             <div class="details-cell">
                 <div class="details-preview" ${hasExpandedDetails ? `onclick="toggleDeliveryDetails('${delivery.id}')" style="cursor: pointer;"` : ''}>
                     <div class="details-text" title="${delivery.details}">
-                        <span class="details-icon">📝</span>
+                        <span class="details-icon">📏</span>
                         ${detailsPreview}
                         ${hasExpandedDetails ? '<span class="expand-indicator">▼</span>' : ''}
                     </div>
-                    ${notes ? `<div class="notes-preview"><small>📋 ${notes.substring(0, 30)}${notes.length > 30 ? '...' : ''}</small></div>` : ''}
                 </div>
             </div>
         `;
@@ -995,16 +987,13 @@ function renderDeliveries(deliveries) {
             expandRow.id = `details-row-${delivery.id}`;
             
             const expandCell = document.createElement("td");
-            expandCell.colSpan = 7; // Updated for new columns
-            const notes = delivery.rawData?.notes || '';
-            const priority = delivery.rawData?.priority || "Normal";
-            const preferredTime = delivery.rawData?.preferredTime || "Anytime";
+            expandCell.colSpan = 5; // Updated for 5 columns: Barangay, Date, Items, Details, Status, Actions
             
             expandCell.innerHTML = `
                 <div class="expanded-content">
                     <div class="expanded-row">
                         <div class="expanded-section">
-                            <h4>📝 Full Details:</h4>
+                            <h4>📏 Full Details:</h4>
                             <p>${delivery.details}</p>
                         </div>
                         <div class="expanded-section">
@@ -1015,14 +1004,7 @@ function renderDeliveries(deliveries) {
                             ${goodsItems.length === 0 ? '<p class="no-goods">No specific items listed</p>' : ''}
                         </div>
                     </div>
-                    ${notes ? `
-                    <div class="expanded-section">
-                        <h4>📋 Special Instructions/Notes:</h4>
-                        <p>${notes}</p>
-                    </div>` : ''}
                     <div class="expanded-metadata">
-                        <span class="metadata-item"><strong>Priority:</strong> ${priority}</span>
-                        <span class="metadata-item"><strong>Preferred Time:</strong> ${preferredTime}</span>
                         <span class="metadata-item"><strong>Created By:</strong> ${delivery.rawData?.createdBy || 'Unknown'}</span>
                     </div>
                 </div>
@@ -1099,8 +1081,6 @@ function setupDeliverySearchAndFilters() {
     const searchInput = document.getElementById("deliverySearchInput");
     const statusFilter = document.getElementById("statusFilter");
     const dateFilter = document.getElementById("dateFilter");
-    const priorityFilter = document.getElementById("priorityFilter");
-    const timeFilter = document.getElementById("timeFilter");
     const clearFiltersBtn = document.getElementById("clearFilters");
     
     if (searchInput) {
@@ -1115,14 +1095,6 @@ function setupDeliverySearchAndFilters() {
         dateFilter.addEventListener("change", filterDeliveries);
     }
     
-    if (priorityFilter) {
-        priorityFilter.addEventListener("change", filterDeliveries);
-    }
-    
-    if (timeFilter) {
-        timeFilter.addEventListener("change", filterDeliveries);
-    }
-    
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener("click", clearDeliveryFilters);
     }
@@ -1133,27 +1105,16 @@ function filterDeliveries() {
     const searchTerm = document.getElementById("deliverySearchInput")?.value.toLowerCase() || "";
     const statusFilter = document.getElementById("statusFilter")?.value || "";
     const dateFilter = document.getElementById("dateFilter")?.value || "";
-    const priorityFilter = document.getElementById("priorityFilter")?.value || "";
-    const timeFilter = document.getElementById("timeFilter")?.value || "";
     
     let filteredDeliveries = allDeliveries.filter(delivery => {
         // Search filter
         const matchesSearch = !searchTerm || 
             delivery.barangay.toLowerCase().includes(searchTerm) ||
             delivery.details.toLowerCase().includes(searchTerm) ||
-            (delivery.rawData?.notes && delivery.rawData.notes.toLowerCase().includes(searchTerm)) ||
             (delivery.deliveryDate && delivery.deliveryDate.toLocaleDateString().includes(searchTerm));
         
         // Status filter
         const matchesStatus = !statusFilter || delivery.status.toLowerCase() === statusFilter.toLowerCase();
-        
-        // Priority filter
-        const deliveryPriority = delivery.rawData?.priority || 'Normal';
-        const matchesPriority = !priorityFilter || deliveryPriority === priorityFilter;
-        
-        // Preferred time filter
-        const deliveryTime = delivery.rawData?.preferredTime || 'Anytime';
-        const matchesTime = !timeFilter || deliveryTime === timeFilter;
         
         // Date filter
         let matchesDate = true;
@@ -1176,7 +1137,7 @@ function filterDeliveries() {
             }
         }
         
-        return matchesSearch && matchesStatus && matchesDate && matchesPriority && matchesTime;
+        return matchesSearch && matchesStatus && matchesDate;
     });
     
     renderDeliveries(filteredDeliveries);
@@ -1187,14 +1148,10 @@ function clearDeliveryFilters() {
     const searchInput = document.getElementById("deliverySearchInput");
     const statusFilter = document.getElementById("statusFilter");
     const dateFilter = document.getElementById("dateFilter");
-    const priorityFilter = document.getElementById("priorityFilter");
-    const timeFilter = document.getElementById("timeFilter");
     
     if (searchInput) searchInput.value = "";
     if (statusFilter) statusFilter.value = "";
     if (dateFilter) dateFilter.value = "";
-    if (priorityFilter) priorityFilter.value = "";
-    if (timeFilter) timeFilter.value = "";
     
     renderDeliveries(allDeliveries);
 }
