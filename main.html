@@ -571,6 +571,421 @@
         tfoot { display: table-footer-group; }
         @page { margin: 12mm; }
     }
+
+    /* Admin Scheduled Deliveries: professionalize table content */
+    .deliveries-overview-card .th-icon { display: none; }
+    #adminDeliveriesTable {
+        table-layout: fixed;
+    }
+    #adminDeliveriesTable th, #adminDeliveriesTable td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        vertical-align: top;
+    }
+    /* Compact, professional header row */
+    #adminDeliveriesTable th {
+        padding: 6px 10px;
+        line-height: 1.2;
+        vertical-align: middle;
+    }
+    #adminDeliveriesTable th > * { margin: 0; }
+
+    /* Column widths (slightly reduce Items to give Details more space) */
+    #adminDeliveriesTable th:nth-child(1),
+    #adminDeliveriesTable td:nth-child(1) { width: 14%; }
+    #adminDeliveriesTable th:nth-child(2),
+    #adminDeliveriesTable td:nth-child(2) { width: 14%; }
+    #adminDeliveriesTable th:nth-child(3),
+    #adminDeliveriesTable td:nth-child(3) { width: 18%; }
+    #adminDeliveriesTable th:nth-child(4),
+    #adminDeliveriesTable td:nth-child(4) { width: 32%; }
+    #adminDeliveriesTable th:nth-child(5),
+    #adminDeliveriesTable td:nth-child(5) { width: 10%; }
+    #adminDeliveriesTable th:nth-child(6),
+    #adminDeliveriesTable td:nth-child(6) { width: 12%; }
+    /* Tighter, readable typography inside the admin deliveries table */
+    #adminDeliveriesTable { font-size: 13px; }
+    #adminDeliveriesTable .items-cell .items-content,
+    #adminDeliveriesTable .details-text {
+        font-size: 13px;
+        line-height: 1.4;
+    }
+    #adminDeliveriesTable .items-cell .items-content,
+    #adminDeliveriesTable .details-text {
+        white-space: normal;
+        word-break: break-word;
+        overflow: visible;
+    }
+    /* Ensure details column shows full text without truncation */
+    #adminDeliveriesTable .details-text { overflow: visible; }
+    /* Keep action icons visible but align neatly */
+    #adminDeliveriesTable .action-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    #adminDeliveriesTable .action-cell .print-btn,
+    #adminDeliveriesTable .action-cell .delete-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        min-height: 32px;
+        padding: 6px 10px;
+        font-size: 12px;
+        line-height: 1.2;
+        white-space: nowrap;
+        writing-mode: horizontal-tb;
+        text-orientation: mixed;
+        border-radius: 6px;
+    }
+    #adminDeliveriesTable .action-cell .print-btn .btn-text,
+    #adminDeliveriesTable .action-cell .delete-btn .btn-text {
+        writing-mode: horizontal-tb;
+        letter-spacing: normal;
+    }
+
+    /* Barangay Delivery Status: remove header emojis and ensure clean wrapping */
+    #deliveryStatus .th-icon { display: none; }
+    #barangayDeliveriesTable { table-layout: fixed; font-size: 13px; }
+    #barangayDeliveriesTable th, #barangayDeliveriesTable td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        vertical-align: top;
+        overflow: visible;
+        text-overflow: clip;
+    }
+    #barangayDeliveriesTable th { padding: 6px 10px; line-height: 1.2; vertical-align: middle; }
+    #barangayDeliveriesTable th > * { margin: 0; }
+    /* Column widths: give Details room */
+    #barangayDeliveriesTable th:nth-child(1),
+    #barangayDeliveriesTable td:nth-child(1) { width: 20%; }
+    #barangayDeliveriesTable th:nth-child(2),
+    #barangayDeliveriesTable td:nth-child(2) { width: 22%; }
+    #barangayDeliveriesTable th:nth-child(3),
+    #barangayDeliveriesTable td:nth-child(3) { width: 38%; }
+    #barangayDeliveriesTable th:nth-child(4),
+    #barangayDeliveriesTable td:nth-child(4) { width: 10%; }
+    #barangayDeliveriesTable th:nth-child(5),
+    #barangayDeliveriesTable td:nth-child(5) { width: 10%; }
+    /* Items and details text */
+    #barangayDeliveriesTable .items-content,
+    #barangayDeliveriesTable .details-content,
+    #barangayDeliveriesTable .details-text {
+        font-size: 13px;
+        line-height: 1.4;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: pre-line !important; /* preserve line breaks */
+        word-break: break-word !important;
+        display: block;
+        max-height: none;
+        -webkit-line-clamp: unset;
+        line-clamp: unset;
+        -webkit-box-orient: unset;
+    }
+    /* Ensure explicit line-break display for items */
+    #barangayDeliveriesTable .items-content br { display: block; }
+
+    /* Barangay Actions column: stack Received above Print, consistent sizing */
+    #barangayDeliveriesTable .barangay-action-buttons {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    /* Delivery History (Barangay modal): remove helper search section */
+    #historySearchSection { display: none; }
+    /* Delivery History table: prevent truncation and ensure clean wrapping */
+    #deliveryHistoryTable { table-layout: fixed; font-size: 12.5px; }
+    #deliveryHistoryTable th, #deliveryHistoryTable td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        vertical-align: top;
+        overflow: visible;
+        text-overflow: clip;
+    }
+    #deliveryHistoryTable .items-content,
+    #deliveryHistoryTable .details-content { 
+        white-space: pre-line; 
+        display: block; 
+        overflow: visible; 
+        text-overflow: clip; 
+        line-height: 1.4; 
+        font-size: 12.5px;
+    }
+
+    /* Barangay → Resident Management: make headers/body wrap cleanly and prevent overflow */
+    #residentsTable { table-layout: fixed; font-size: 12.5px; }
+    #residentsTable th, #residentsTable td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        vertical-align: top;
+        overflow: visible;
+        text-overflow: clip;
+        padding: 6px 8px;
+    }
+    #residentsTable th { line-height: 1.2; font-size: 12px; text-align: left; }
+    #residentsTable td { font-size: 12.5px; }
+    #residentsTable th > * { margin: 0; }
+    /* Suggested column widths for readability */
+    #residentsTable th:nth-child(1),  #residentsTable td:nth-child(1)  { width: 16%; } /* Name */
+    #residentsTable th:nth-child(2),  #residentsTable td:nth-child(2)  { width: 6%; }  /* Age */
+    #residentsTable th:nth-child(3),  #residentsTable td:nth-child(3)  { width: 10%; } /* Address Zone */
+    #residentsTable th:nth-child(4),  #residentsTable td:nth-child(4)  { width: 9%; }  /* Household No */
+    #residentsTable th:nth-child(5),  #residentsTable td:nth-child(5)  { width: 7%; }  /* Gender */
+    #residentsTable th:nth-child(6),  #residentsTable td:nth-child(6)  { width: 10%; } /* Household Status */
+    #residentsTable th:nth-child(7),  #residentsTable td:nth-child(7)  { width: 9%; }  /* House Material */
+    #residentsTable th:nth-child(8),  #residentsTable td:nth-child(8)  { width: 7%; }  /* Terrain */
+    #residentsTable th:nth-child(9),  #residentsTable td:nth-child(9)  { width: 9%; }  /* Family Members */
+    #residentsTable th:nth-child(10), #residentsTable td:nth-child(10) { width: 9%; }  /* Monthly Income */
+    #residentsTable th:nth-child(11), #residentsTable td:nth-child(11) { width: 9%; }  /* Aid History */
+    #residentsTable th:nth-child(12), #residentsTable td:nth-child(12) { width: 10%; } /* Remarks */
+    #residentsTable th:nth-child(13), #residentsTable td:nth-child(13) { width: 9%; }  /* Evacuee History */
+    #residentsTable th:nth-child(14), #residentsTable td:nth-child(14) { width: 8%; }  /* Action */
+
+    /* Action column: vertical, consistent buttons */
+    #residentsTable td:nth-child(14) {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        min-width: 110px; /* ensure enough space for labels */
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+    #residentsTable td:nth-child(14) .edit-btn,
+    #residentsTable td:nth-child(14) .delete-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        box-sizing: border-box;
+        height: 34px; /* consistent height */
+        padding: 6px 12px; /* balanced padding */
+        font-size: 12px; /* consistent font size */
+        line-height: 1; /* prevent text wrap */
+        white-space: nowrap;
+        border-radius: 6px;
+    }
+
+    /* Resident Management: place search under export buttons */
+    #barangayResidentSearchSection {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    #barangayResidentSearchSection .dt-buttons {
+        order: 0;
+        display: inline-flex !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+        margin: 0 0 4px 0 !important;
+    }
+    #barangayResidentSearchSection .search-section {
+        order: 1;
+        width: 100%;
+    }
+    #barangayResidentSearchSection .search-info { margin-bottom: 6px; }
+    #barangayResidentSearchSection .search-box input {
+        width: 100%;
+        max-width: 520px;
+    }
+
+    /* Global Responsive Enhancements */
+    .table-container table,
+    .enhanced-residents-table table,
+    #goodsTotalsTable,
+    #adminDeliveriesTable,
+    #barangayDeliveriesTable,
+    #residentsTable,
+    #deliveryHistoryTable { width: 100%; table-layout: fixed; }
+    .table-container th, .table-container td,
+    .enhanced-residents-table th, .enhanced-residents-table td,
+    #goodsTotalsTable th, #goodsTotalsTable td,
+    #adminDeliveriesTable th, #adminDeliveriesTable td,
+    #barangayDeliveriesTable th, #barangayDeliveriesTable td,
+    #residentsTable th, #residentsTable td,
+    #deliveryHistoryTable th, #deliveryHistoryTable td { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+
+    /* Touch-friendly buttons */
+    @media (max-width: 768px) {
+        button,
+        .action-button,
+        .receive-btn,
+        .status-btn,
+        .print-btn,
+        .print-receipt-btn,
+        .delete-btn,
+        .submit-btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+        .dt-buttons button { min-height: 40px !important; padding: 8px 12px !important; font-size: 13px !important; }
+    }
+
+    /* Forms: full-width inputs on small screens */
+    @media (max-width: 768px) {
+        .enhanced-form .form-row { display: block; }
+        .enhanced-form .form-group { width: 100% !important; }
+        .enhanced-form input, .enhanced-form select, .enhanced-form textarea { width: 100%; }
+    }
+
+    /* Tables: typography scaling */
+    @media (max-width: 1024px) {
+        #adminDeliveriesTable,
+        #barangayDeliveriesTable,
+        #residentsTable,
+        #deliveryHistoryTable { font-size: 12.5px; }
+        #adminDeliveriesTable th, #barangayDeliveriesTable th, #residentsTable th, #deliveryHistoryTable th { padding: 6px 8px; }
+    }
+    @media (max-width: 768px) {
+        #adminDeliveriesTable,
+        #barangayDeliveriesTable,
+        #residentsTable,
+        #deliveryHistoryTable { font-size: 12px; }
+        #adminDeliveriesTable th, #barangayDeliveriesTable th, #residentsTable th, #deliveryHistoryTable th { padding: 5px 6px; }
+    }
+
+    /* Modals & Popups (SweetAlert2 + custom) */
+    .swal2-popup { border-radius: 14px; }
+    @media (max-width: 480px) {
+        .message-modal-content { width: 94vw; }
+        .message-modal-header h3 { font-size: 1.1rem; }
+        .message-text { font-size: 0.95rem; }
+        .swal2-popup { width: 90vw !important; padding: 1.25rem !important; }
+        .swal2-title { font-size: 1.1rem !important; }
+        .swal2-html-container { font-size: 0.95rem !important; }
+        .swal2-actions button { min-width: 88px; }
+    }
+
+    /* Navigation tweaks */
+    @media (max-width: 768px) {
+        .sidebar { width: 75vw; }
+        .mobile-header .mobile-menu-btn { padding: 10px; }
+        .card { padding: 12px; }
+        .card .card-header h3 { font-size: 1rem; }
+        .section-header h2 { font-size: 1.1rem; }
+    }
+    #barangayDeliveriesTable .barangay-action-buttons .receive-btn,
+    #barangayDeliveriesTable .barangay-action-buttons .status-btn,
+    #barangayDeliveriesTable .barangay-action-buttons .print-receipt-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        min-height: 32px;
+        padding: 6px 10px;
+        font-size: 11px; /* match print button size */
+        line-height: 1.2;
+        white-space: nowrap; /* prevent line breaks like Receiv\ned */
+        writing-mode: horizontal-tb;
+        text-orientation: mixed;
+        border-radius: 6px;
+    }
+    #barangayDeliveriesTable .barangay-action-buttons .receive-btn .btn-text,
+    #barangayDeliveriesTable .barangay-action-buttons .status-btn .btn-text,
+    #barangayDeliveriesTable .barangay-action-buttons .print-receipt-btn .btn-text {
+        font-size: 11px;
+        white-space: nowrap;
+    }
+    
+    /* Residents Modal Export Buttons */
+    .export-buttons-desktop {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 16px;
+        padding: 0;
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+    }
+    
+    .export-buttons-desktop .export-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        color: white;
+        min-height: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        white-space: nowrap;
+        min-width: auto;
+        width: auto;
+        flex-shrink: 0;
+    }
+    
+    #exportResidentsExcelBtn {
+        background: #217346;
+    }
+    
+    #exportResidentsExcelBtn:hover {
+        background: #1a5a37;
+        transform: translateY(-1px);
+    }
+    
+    #exportResidentsPDFBtn {
+        background: #dc2626;
+    }
+    
+    #exportResidentsPDFBtn:hover {
+        background: #b91c1c;
+        transform: translateY(-1px);
+    }
+    
+    #printResidentsBtn {
+        background: #7c3aed;
+    }
+    
+    #printResidentsBtn:hover {
+        background: #6d28d9;
+        transform: translateY(-1px);
+    }
+    
+    .export-section.mobile-export {
+        margin-bottom: 16px;
+        display: none; /* Hidden by default, shown when DataTables buttons are moved here */
+    }
+    
+    .export-section.mobile-export .dt-buttons {
+        display: flex !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+    }
+    
+    /* Hide desktop export buttons on mobile, show DataTables buttons */
+    @media (max-width: 768px) {
+        .export-buttons-desktop {
+            display: none !important;
+        }
+        
+        .export-section.mobile-export {
+            display: block !important;
+        }
+    }
+    
+    /* Ensure desktop export buttons work on larger screens */
+    @media (min-width: 769px) {
+        .export-buttons-desktop {
+            display: flex !important;
+        }
+        
+        .export-section.mobile-export {
+            display: none !important;
+        }
+    }
     </style>
 </head>
 <body>
@@ -1306,10 +1721,7 @@
                     <form id="deliveryForm" class="enhanced-form">
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="barangaySelect">
-                                    <span class="label-icon">🏘️</span>
-                                    Select Barangay
-                                </label>
+                                <label for="barangaySelect">Select Barangay</label>
                                 <div class="select-wrapper">
                                     <select id="barangaySelect" required>
                                         <option value="" disabled selected>Choose a barangay...</option>
@@ -1319,22 +1731,16 @@
                             </div>
                             
                             <div class="form-group">
-                                <label for="deliveryDate">
-                                    <span class="label-icon">📅</span>
-                                    Delivery Date
-                                </label>
+                                <label for="deliveryDate">Delivery Date</label>
                                 <div class="date-wrapper">
                                     <input type="date" id="deliveryDate" required>
-                                    <span class="date-icon">📅</span>
+                                    <span class="date-icon" style="display:none"></span>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="deliveryDetails">
-                                <span class="label-icon">📝</span>
-                                Delivery Details
-                            </label>
+                            <label for="deliveryDetails">Delivery Details</label>
                             <textarea 
                                 id="deliveryDetails" 
                                 rows="4" 
@@ -1345,23 +1751,29 @@
                         
                         <!-- Enhanced Items Section -->
                         <div class="form-section">
-                            <h4><span class="label-icon">📦</span> Items & Quantities</h4>
+                            <div class="section-header-with-inventory">
+                                <h4>Items & Quantities</h4>
+                                <div class="inventory-summary" id="inventorySummary" style="font-size: 0.85em; color: #666; margin-top: 4px; display: none;">
+                                    <span>📦 Current Inventory: </span>
+                                    <span id="currentInventoryDisplay">Loading...</span>
+                                </div>
+                            </div>
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Rice (sacks)</label>
-                                    <input type="number" id="goodsRice" min="0" value="0">
+                                    <label>Rice (sacks) <span class="inventory-hint" id="riceInventory"></span></label>
+                                    <input type="number" id="goodsRice" min="0" value="0" class="inventory-input" data-item="rice">
                                 </div>
                                 <div class="form-group">
-                                    <label>Biscuits (boxes)</label>
-                                    <input type="number" id="goodsBiscuits" min="0" value="0">
+                                    <label>Biscuits (boxes) <span class="inventory-hint" id="biscuitsInventory"></span></label>
+                                    <input type="number" id="goodsBiscuits" min="0" value="0" class="inventory-input" data-item="biscuits">
                                 </div>
                                 <div class="form-group">
-                                    <label>Canned Goods (boxes)</label>
-                                    <input type="number" id="goodsCanned" min="0" value="0">
+                                    <label>Canned Goods (boxes) <span class="inventory-hint" id="cannedInventory"></span></label>
+                                    <input type="number" id="goodsCanned" min="0" value="0" class="inventory-input" data-item="canned">
                                 </div>
                                 <div class="form-group">
-                                    <label>Shirts (packs)</label>
-                                    <input type="number" id="goodsShirts" min="0" value="0">
+                                    <label>Shirts (packs) <span class="inventory-hint" id="shirtsInventory"></span></label>
+                                    <input type="number" id="goodsShirts" min="0" value="0" class="inventory-input" data-item="shirts">
                                 </div>
                             </div>
                         </div>
@@ -1369,7 +1781,7 @@
                         
                         <div class="form-actions">
                             <button type="submit" class="submit-btn">
-                                <span class="btn-icon">🚚</span>
+                                <span class="btn-icon" style="display:none"></span>
                                 <span>Schedule Delivery</span>
                             </button>
                         </div>
@@ -1562,13 +1974,34 @@
             <div id="viewResidentsModal" class="modal hidden">
                 <div class="modal-content residents-modal-content">
                     <div class="modal-header">
-                        <h2 id="viewResidentsTitle">🏘️ Residents</h2>
+                        <h2 id="viewResidentsTitle">🏠️ Residents</h2>
                         <div class="modal-actions">
                             <span class="close" onclick="closeViewResidentsModal()">&times;</span>
                         </div>
                     </div>
                     
                     <div class="modal-body">
+                        <!-- Export buttons for desktop -->
+                        <div class="export-buttons-desktop">
+                            <button id="exportResidentsExcelBtn" class="export-btn" title="Export to Excel">
+                                <span class="material-icons">download</span>
+                                <span class="btn-text">Excel</span>
+                            </button>
+                            <button id="exportResidentsPDFBtn" class="export-btn" title="Export to PDF">
+                                <span class="material-icons">picture_as_pdf</span>
+                                <span class="btn-text">PDF</span>
+                            </button>
+                            <button id="printResidentsBtn" class="export-btn" title="Print">
+                                <span class="material-icons">print</span>
+                                <span class="btn-text">Print</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Export buttons container for mobile (DataTables buttons will be moved here) -->
+                        <div class="export-section mobile-export" id="residentsExportSection">
+                            <!-- DataTables buttons will be dynamically inserted here -->
+                        </div>
+                        
                         <div class="search-section">
                             <div class="search-box">
                                 <input 
@@ -1672,6 +2105,8 @@
     <script type="module" src="./firebase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
     <script src="chart.js"></script>
+    <!-- SweetAlert2 for beautiful login popups -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script type="module" src="app.js"></script>
     <script src="statistics.js"></script>
 
@@ -1889,6 +2324,63 @@
         }
         
         console.log('✅ Global functions loaded and available');
+        
+        // Comprehensive live reload error handling
+        
+        // Defensive refreshCSS function to prevent live reload errors
+        function refreshCSS() {
+            try {
+                const links = document.getElementsByTagName('link');
+                for (let i = links.length - 1; i >= 0; i--) {
+                    const link = links[i];
+                    if (link.rel === 'stylesheet' && link.href) {
+                        // Check if the link is actually in the document
+                        if (link.parentNode && document.contains(link)) {
+                            const newLink = document.createElement('link');
+                            newLink.rel = 'stylesheet';
+                            newLink.type = 'text/css';
+                            newLink.href = link.href + '?t=' + Date.now();
+                            
+                            // Insert the new link and remove the old one safely
+                            link.parentNode.insertBefore(newLink, link.nextSibling);
+                            
+                            // Use a timeout to ensure the new CSS is loaded
+                            setTimeout(() => {
+                                if (link.parentNode && document.contains(link)) {
+                                    link.parentNode.removeChild(link);
+                                }
+                            }, 100);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('CSS refresh error (can be safely ignored):', error.message);
+            }
+        }
+        
+        // Prevent other common live reload errors
+        window.addEventListener('error', function(event) {
+            if (event.message && event.message.includes('removeChild')) {
+                console.warn('Live reload DOM error (can be safely ignored):', event.message);
+                event.preventDefault();
+                return true;
+            }
+        });
+        
+        // Handle WebSocket connection errors gracefully
+        const originalWebSocket = window.WebSocket;
+        if (originalWebSocket) {
+            window.WebSocket = function(url, protocols) {
+                const ws = new originalWebSocket(url, protocols);
+                ws.addEventListener('error', function(event) {
+                    console.warn('WebSocket connection error (likely live reload server):', event);
+                });
+                return ws;
+            };
+            // Copy static properties
+            Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+            window.WebSocket.prototype = originalWebSocket.prototype;
+        }
     </script>
     
     <!-- Mobile Navigation Script -->

@@ -293,10 +293,48 @@ async function handleLogin(event) {
 
     try {
         await signInWithEmailAndPassword(auth, email, password);
-        showSuccess('Login successful! Redirecting...');
+        // Modern success popup (UI-only)
+        const isBarangayUser = normalized.startsWith('barangay_');
+        const successWelcomeText = isBarangayUser ? 'Welcome, Barangay!' : 'Welcome, Admin!';
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Login Successful',
+                text: successWelcomeText,
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    // Add subtle blue/green accent border to match theme
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        } else {
+            showSuccess('Login successful! Redirecting...');
+        }
         return true;
     } catch (error) {
-        showError(mapAuthError(error));
+        // Modern error popup (UI-only)
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Login Failed',
+                text: 'Invalid username or password',
+                icon: 'error',
+                confirmButtonText: 'Retry',
+                confirmButtonColor: '#2563eb',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    // Red/blue theme accent
+                    popup.style.borderTop = '6px solid #ef4444';
+                    popup.style.borderBottom = '6px solid #2563eb';
+                }
+            });
+        } else {
+            showError(mapAuthError(error));
+        }
         return false;
     } finally {
         // Re-enable form
@@ -531,17 +569,17 @@ function loadBarangayDeliveries(barangay) {
             const deliveryDate = d.deliveryDate?.toDate?.();
             const dateStr = deliveryDate ? deliveryDate.toLocaleDateString() : 'No Date';
             
-            // Create enhanced details with goods information (expandable like admin)
+            // Create enhanced details with goods information (expandable like admin) — no emojis
             const goodsItems = [];
             if (d.goods) {
-                if (d.goods.rice > 0) goodsItems.push(`🌾 ${d.goods.rice} Rice`);
-                if (d.goods.biscuits > 0) goodsItems.push(`🍪 ${d.goods.biscuits} Biscuits`);
-                if (d.goods.canned > 0) goodsItems.push(`🥫 ${d.goods.canned} Canned`);
-                if (d.goods.shirts > 0) goodsItems.push(`👕 ${d.goods.shirts} Shirts`);
+                if (d.goods.rice > 0) goodsItems.push(`${d.goods.rice} Rice`);
+                if (d.goods.biscuits > 0) goodsItems.push(`${d.goods.biscuits} Biscuits`);
+                if (d.goods.canned > 0) goodsItems.push(`${d.goods.canned} Canned`);
+                if (d.goods.shirts > 0) goodsItems.push(`${d.goods.shirts} Shirts`);
             }
             
-            const detailsPreview = d.details && d.details.length > 40 ? d.details.substring(0, 40) + '...' : (d.details || 'No description');
-            const goodsPreview = goodsItems.length > 2 ? goodsItems.slice(0, 2).join(', ') + `... +${goodsItems.length - 2} more` : goodsItems.join(', ');
+            const detailsPreview = d.details || 'No description';
+            const goodsPreview = goodsItems.join(', ');
             
             const hasExpandableDetails = goodsItems.length > 0 || (d.details && d.details.length > 40);
             
@@ -550,7 +588,6 @@ function loadBarangayDeliveries(barangay) {
             const tdDate = document.createElement('td');
             tdDate.innerHTML = `
                 <div class="date-cell">
-                    <span class="date-icon">📅</span>
                     <span class="date-text">${dateStr}</span>
                 </div>
             `;
@@ -570,7 +607,6 @@ function loadBarangayDeliveries(barangay) {
                 <div class="details-cell" ${hasExpandableDetails ? `onclick="toggleBarangayDeliveryDetails('${docSnap.id}')" style="cursor: pointer;"` : ''}>
                     <div class="details-preview">
                         <div class="details-text" title="${d.details || 'No description'}">
-                            <span class="details-icon">📝</span>
                             ${detailsPreview}
                             ${hasExpandableDetails ? '<span class="expand-indicator">▼</span>' : ''}
                         </div>
@@ -578,13 +614,12 @@ function loadBarangayDeliveries(barangay) {
                 </div>
             `;
             
-            // Status Column
+            // Status Column (text-only badge, no emoji)
             const tdStatus = document.createElement('td');
             const statusClass = getStatusClass(d.status || 'Pending');
             tdStatus.innerHTML = `
                 <div class="status-cell">
                     <span class="status-badge ${statusClass}">
-                        <span class="status-icon">${getStatusIcon(d.status || 'Pending')}</span>
                         <span class="status-text">${d.status || 'Pending'}</span>
                     </span>
                 </div>
@@ -656,11 +691,11 @@ function loadBarangayDeliveries(barangay) {
                 expandCell.innerHTML = `
                     <div class="expanded-content">
                         <div class="full-details">
-                            <h4>📝 Full Details:</h4>
+                            <h4>Full Details:</h4>
                             <p>${d.details || 'No description provided'}</p>
                         </div>
                         <div class="full-goods">
-                            <h4>📦 Items Received:</h4>
+                            <h4>Items Received:</h4>
                             <div class="goods-grid">
                                 ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
                             </div>
@@ -780,7 +815,23 @@ async function handleScheduleDelivery() {
         };
 
         if (!barangay || !deliveryDate || !deliveryDetails) {
-            showError("All fields are required!");
+            if (window.Swal) {
+                await Swal.fire({
+                    title: 'Schedule Failed',
+                    text: 'Please complete all required fields.',
+                    icon: 'error',
+                    confirmButtonText: 'Retry',
+                    confirmButtonColor: '#2563eb',
+                    background: '#ffffff',
+                    color: '#1f2937',
+                    didOpen: (popup) => {
+                        popup.style.borderTop = '6px solid #ef4444';
+                        popup.style.borderBottom = '6px solid #2563eb';
+                    }
+                });
+            } else {
+                showError("All fields are required!");
+            }
             return;
         }
 
@@ -801,13 +852,45 @@ async function handleScheduleDelivery() {
         });
         
         // NOTE: Inventory will be deducted when delivery is marked as 'Received'
-        showSuccess('Delivery scheduled successfully.');
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Schedule Successful',
+                text: 'Delivery has been successfully scheduled.',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        } else {
+            showSuccess('Delivery scheduled successfully.');
+        }
         // Reset form
         document.getElementById('deliveryForm')?.reset();
         
     } catch (error) {
         console.error('Error scheduling delivery:', error);
-        showError('Failed to schedule delivery.');
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Schedule Failed',
+                text: 'Please complete all required fields.',
+                icon: 'error',
+                confirmButtonText: 'Retry',
+                confirmButtonColor: '#2563eb',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #ef4444';
+                    popup.style.borderBottom = '6px solid #2563eb';
+                }
+            });
+        } else {
+            showError('Failed to schedule delivery.');
+        }
         throw error; // Re-throw to be handled by the form submission
     } finally {
         // Always reset the flag
@@ -887,24 +970,22 @@ function renderDeliveries(deliveries) {
         const row = document.createElement("tr");
         row.className = "delivery-row";
         
-        // Barangay with enhanced styling
+        // Barangay with professional styling (no emojis)
         const tdBarangay = document.createElement("td");
         tdBarangay.innerHTML = `
             <div class="barangay-cell">
-                <span class="barangay-icon">🏘️</span>
                 <span class="barangay-name">${delivery.barangay}</span>
             </div>
         `;
         row.appendChild(tdBarangay);
 
-        // Delivery Date with enhanced styling
+        // Delivery Date with professional styling (no emojis)
         const tdDate = document.createElement("td");
         const deliveryDate = delivery.deliveryDate;
         const dateText = deliveryDate ? deliveryDate.toLocaleDateString() : "No Date";
         const dateClass = deliveryDate && deliveryDate < new Date() ? "past-date" : "future-date";
         tdDate.innerHTML = `
             <div class="date-cell ${dateClass}">
-                <span class="date-icon">📅</span>
                 <div class="date-info">
                     <span class="date-text">${dateText}</span>
                 </div>
@@ -917,13 +998,13 @@ function renderDeliveries(deliveries) {
         const goodsItems = [];
         if (delivery.rawData?.goods) {
             const goods = delivery.rawData.goods;
-            if (goods.rice > 0) goodsItems.push(`🌾 ${goods.rice} Rice`);
-            if (goods.biscuits > 0) goodsItems.push(`🍪 ${goods.biscuits} Biscuits`);
-            if (goods.canned > 0) goodsItems.push(`🥫 ${goods.canned} Canned`);
-            if (goods.shirts > 0) goodsItems.push(`👕 ${goods.shirts} Shirts`);
+            if (goods.rice > 0) goodsItems.push(`${goods.rice} Rice`);
+            if (goods.biscuits > 0) goodsItems.push(`${goods.biscuits} Biscuits`);
+            if (goods.canned > 0) goodsItems.push(`${goods.canned} Canned`);
+            if (goods.shirts > 0) goodsItems.push(`${goods.shirts} Shirts`);
         }
         
-        const itemsSummary = goodsItems.length > 0 ? goodsItems.join('<br>') : 'No items specified';
+        const itemsSummary = goodsItems.length > 0 ? goodsItems.join(', ') : 'No items specified';
         tdItems.innerHTML = `
             <div class="items-cell">
                 <div class="items-content">${itemsSummary}</div>
@@ -931,16 +1012,15 @@ function renderDeliveries(deliveries) {
         `;
         row.appendChild(tdItems);
         
-        // Details Column  
+        // Details Column (full text, no emojis)
         const tdDetails = document.createElement("td");
-        const detailsPreview = delivery.details.length > 40 ? delivery.details.substring(0, 40) + '...' : delivery.details;
-        const hasExpandedDetails = delivery.details.length > 50;
+        const detailsPreview = delivery.details; // show full sentence
+        const hasExpandedDetails = (goodsItems.length > 0); // keep expansion for goods breakdown
         
         tdDetails.innerHTML = `
             <div class="details-cell">
                 <div class="details-preview" ${hasExpandedDetails ? `onclick="toggleDeliveryDetails('${delivery.id}')" style="cursor: pointer;"` : ''}>
                     <div class="details-text" title="${delivery.details}">
-                        <span class="details-icon">📏</span>
                         ${detailsPreview}
                         ${hasExpandedDetails ? '<span class="expand-indicator">▼</span>' : ''}
                     </div>
@@ -955,24 +1035,23 @@ function renderDeliveries(deliveries) {
         tdStatus.innerHTML = `
             <div class="status-cell">
                 <span class="status-badge ${statusClass}">
-                    <span class="status-icon">${getStatusIcon(delivery.status)}</span>
                     <span class="status-text">${delivery.status}</span>
                 </span>
             </div>
         `;
         row.appendChild(tdStatus);
 
-        // Action with enhanced styling
+        // Action with enhanced styling (Print above Delete, vertical stack)
         const tdAction = document.createElement("td");
         tdAction.innerHTML = `
             <div class="action-cell">
-                <button class="delete-btn" onclick="deleteDelivery('${delivery.id}')">
-                    <span class="btn-icon">🗑️</span>
-                    <span class="btn-text">Delete</span>
-                </button>
                 <button class="print-btn" onclick="printDeliveryReceipt('${delivery.id}')">
                     <span class="btn-icon">🖨️</span>
                     <span class="btn-text">Print</span>
+                </button>
+                <button class="delete-btn" onclick="deleteDelivery('${delivery.id}')">
+                    <span class="btn-icon">🗑️</span>
+                    <span class="btn-text">Delete</span>
                 </button>
             </div>
         `;
@@ -993,11 +1072,11 @@ function renderDeliveries(deliveries) {
                 <div class="expanded-content">
                     <div class="expanded-row">
                         <div class="expanded-section">
-                            <h4>📏 Full Details:</h4>
+                            <h4>Full Details:</h4>
                             <p>${delivery.details}</p>
                         </div>
                         <div class="expanded-section">
-                            <h4>📦 Items to Deliver:</h4>
+                            <h4>Items to Deliver:</h4>
                             <div class="goods-grid">
                                 ${goodsItems.map(item => `<span class="goods-item">${item}</span>`).join('')}
                             </div>
@@ -1158,13 +1237,63 @@ function clearDeliveryFilters() {
 
 // Enhanced delete delivery function
 async function deleteDelivery(deliveryId) {
-    if (confirm("Are you sure you want to delete this delivery?")) {
-        try {
-            await deleteDoc(doc(db, "deliveries", deliveryId));
-            showSuccess("Delivery deleted successfully!");
-        } catch (error) {
-            console.error("Error deleting delivery:", error);
-            showError("Failed to delete delivery. Please try again.");
+    try {
+        let confirmed = true;
+        if (window.Swal) {
+            const result = await Swal.fire({
+                title: 'Are you sure?',
+                text: 'Are you sure you want to delete this delivery?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes',
+                cancelButtonText: 'No',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#2563eb',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+            confirmed = result.isConfirmed;
+        } else {
+            confirmed = confirm('Are you sure you want to delete this delivery?');
+        }
+
+        if (!confirmed) return;
+
+        await deleteDoc(doc(db, 'deliveries', deliveryId));
+
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Successfully Deleted',
+                text: 'The delivery has been successfully deleted.',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        } else {
+            showSuccess('Delivery deleted successfully!');
+        }
+    } catch (error) {
+        console.error('Error deleting delivery:', error);
+        if (window.Swal) {
+            await Swal.fire({
+                title: 'Delete Failed',
+                text: 'Failed to delete delivery. Please try again.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#2563eb'
+            });
+        } else {
+            showError('Failed to delete delivery. Please try again.');
         }
     }
 }
@@ -1624,9 +1753,16 @@ window.loadResidentsForBarangay = async function(barangayName) {
                             existingBtns.remove();
                         }
                         
-                        // Move buttons to search section (above the search box)
+                        // Keep buttons at the top; move search block BELOW the buttons
                         if (searchBox) {
-                            searchSection.insertBefore(btns, searchSection.firstChild);
+                            // Ensure search section content order: [buttons][search-section]
+                            const innerSearch = searchSection.querySelector('.search-section');
+                            if (innerSearch && btns.nextSibling !== innerSearch) {
+                                searchSection.insertBefore(btns, searchSection.firstChild);
+                                searchSection.appendChild(innerSearch);
+                            } else {
+                                searchSection.insertBefore(btns, searchSection.firstChild);
+                            }
                         } else {
                             searchSection.insertBefore(btns, searchSection.firstChild);
                         }
@@ -2844,6 +2980,45 @@ async function loadResidentsForModal(barangayName) {
         
         // Setup search functionality
         setupResidentSearch();
+        
+        // Enhanced close button click handling
+        const modal = document.getElementById('viewResidentsModal');
+        const closeButton = modal ? modal.querySelector('.close') : null;
+        if (closeButton) {
+            // Remove existing event listeners to avoid duplicates
+            const newCloseButton = closeButton.cloneNode(true);
+            closeButton.parentNode.replaceChild(newCloseButton, closeButton);
+            
+            // Add comprehensive event listeners for all interaction types
+            ['click', 'touchstart', 'mousedown'].forEach(eventType => {
+                newCloseButton.addEventListener(eventType, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    
+                    console.log('Close button triggered via:', eventType);
+                    
+                    // Close the modal
+                    try {
+                        closeViewResidentsModal();
+                    } catch (err) {
+                        console.warn('closeViewResidentsModal function not found, using fallback');
+                        if (modal) {
+                            modal.classList.add('hidden');
+                            modal.style.display = 'none';
+                        }
+                    }
+                }, { passive: false, capture: true });
+            });
+            
+            // Additional pointer events for better cross-device compatibility
+            newCloseButton.style.cssText += `
+                cursor: pointer !important;
+                pointer-events: auto !important;
+                touch-action: manipulation !important;
+                -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
+            `;
+        }
 
         // Initialize DataTable for modal if available
         try {
@@ -2917,8 +3092,9 @@ buttons: [
                             display: flex !important;
                             gap: 8px !important;
                             flex-wrap: wrap !important;
-                            z-index: 1000 !important;
+                            z-index: 100000 !important;
                             position: relative !important;
+                            pointer-events: auto !important;
                         `;
                         
                         // Ensure each button is properly styled and clickable
@@ -2928,8 +3104,9 @@ buttons: [
                                 align-items: center !important;
                                 justify-content: center !important;
                                 width: auto !important;
-                                min-height: 36px !important;
-                                padding: 8px 12px !important;
+                                min-height: 44px !important;
+                                min-width: 44px !important;
+                                padding: 12px 16px !important;
                                 margin: 0 !important;
                                 background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
                                 color: white !important;
@@ -2940,23 +3117,35 @@ buttons: [
                                 font-weight: 500 !important;
                                 pointer-events: auto !important;
                                 user-select: none !important;
-                                z-index: 1001 !important;
+                                z-index: 100001 !important;
                                 position: relative !important;
                                 transition: all 0.2s ease !important;
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+                                touch-action: manipulation !important;
+                                -webkit-tap-highlight-color: transparent !important;
+                                -webkit-touch-callout: none !important;
                             `;
                             
                             // Add explicit event listeners as a fallback
                             if (!button.hasAttribute('data-enhanced')) {
                                 button.setAttribute('data-enhanced', 'true');
                                 
-                                // Re-bind click events to ensure they work
+                                // Remove any existing event listeners by cloning the button
                                 const originalClick = button.onclick;
-                                button.addEventListener('click', function(e) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    
-                                    // Try original handler first
+                                const newButton = button.cloneNode(true);
+                                button.parentNode.replaceChild(newButton, button);
+                                button = newButton; // Update reference
+                                
+                                // Add comprehensive event handling for all interaction types
+                                ['click', 'touchstart', 'mousedown'].forEach(eventType => {
+                                    newButton.addEventListener(eventType, function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        
+                                        console.log('DataTables button triggered via:', eventType, this.textContent);
+                                        
+                                        // Try original handler first
                                     if (originalClick) {
                                         try {
                                             originalClick.call(this, e);
@@ -2997,7 +3186,8 @@ buttons: [
                                             window.print();
                                         }
                                     }
-                                }, { passive: false });
+                                    }, { passive: false, capture: true });
+                                });
                                 
                                 // Add hover effects
                                 button.addEventListener('mouseenter', function() {
@@ -3012,7 +3202,7 @@ buttons: [
                             }
                         });
                     }
-                    
+                
                     // Hide DataTables' built-in search; we'll keep the custom one above
                     if (filter) { filter.style.display = 'none'; }
                 } catch(err) {
@@ -3696,27 +3886,26 @@ async function showDeliveryHistory() {
                     const updatedAt = safeToDate(delivery.updatedAt);
                     const preferredTime = delivery.preferredTime || 'Anytime';
                     
-                    // Format items received with enhanced display
+                    // Format items received without emojis and without truncation
                     let itemsReceived = 'N/A';
                     if (delivery.goods) {
                         const items = [];
-                        if (delivery.goods.rice) items.push(`🌾 ${delivery.goods.rice} Rice`);
-                        if (delivery.goods.biscuits) items.push(`🍪 ${delivery.goods.biscuits} Biscuits`);
-                        if (delivery.goods.canned) items.push(`🥫 ${delivery.goods.canned} Canned`);
-                        if (delivery.goods.shirts) items.push(`👕 ${delivery.goods.shirts} Shirts`);
+                        if (delivery.goods.rice) items.push(`${delivery.goods.rice} Rice`);
+                        if (delivery.goods.biscuits) items.push(`${delivery.goods.biscuits} Biscuits`);
+                        if (delivery.goods.canned) items.push(`${delivery.goods.canned} Canned`);
+                        if (delivery.goods.shirts) items.push(`${delivery.goods.shirts} Shirts`);
                         itemsReceived = items.join('<br>');
                     }
                     
-                    // Priority with badge
+                    // Priority with text-only badge
                     const priority = delivery.priority || 'Normal';
                     const priorityClass = priority.toLowerCase().replace(' ', '-');
-                    const priorityIcon = priority === 'Urgent' ? '🔴' : priority === 'High' ? '🟠' : '🟢';
-                    const priorityBadge = `<span class="priority-badge priority-${priorityClass}"><span class="priority-icon">${priorityIcon}</span> ${priority}</span>`;
+                    const priorityBadge = `<span class="priority-badge priority-${priorityClass}">${priority}</span>`;
                     
-                    // Details with notes
+                    // Details with notes (no emojis, full text)
                     let detailsDisplay = delivery.details || 'No details';
                     if (delivery.notes) {
-                        detailsDisplay += `<br><small class="notes-text">📋 ${delivery.notes}</small>`;
+                        detailsDisplay += `<br><small class="notes-text">${delivery.notes}</small>`;
                     }
                     
                     row.innerHTML = `
@@ -3781,78 +3970,51 @@ async function showDeliveryHistory() {
                     pageLength: 10
                 });
                 
-                // Move DataTables buttons to search section
+                // Align export buttons and search nicely in the wrapper
                 setTimeout(() => {
                     try {
                         const wrapper = document.getElementById('deliveryHistoryTable').closest('.dataTables_wrapper');
                         const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
                         const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
-                        const searchSection = document.getElementById('historySearchSection');
-                        const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
-                        
-                        if (btns && searchSection) {
-                            // Remove any existing button container
-                            const existingBtns = searchSection.querySelector('.dt-buttons');
-                            if (existingBtns && existingBtns !== btns) {
-                                existingBtns.remove();
-                            }
-                            
-                            // Move buttons to search section
-                            if (searchBox) {
-                                searchSection.insertBefore(btns, searchBox);
-                            } else {
-                                searchSection.insertBefore(btns, searchSection.firstChild);
-                            }
-                            
-                            // Apply consistent styling
+                        if (btns) {
                             btns.style.cssText = `
                                 margin: 0 0 12px 0 !important;
-                                display: flex !important;
+                                display: inline-flex !important;
                                 gap: 8px !important;
                                 flex-wrap: wrap !important;
-                                z-index: 1000 !important;
-                                position: relative !important;
                             `;
-                            
-                            // Style each button
+                            // Color-code buttons
                             btns.querySelectorAll('button').forEach((button, index) => {
                                 button.style.cssText = `
                                     display: inline-flex !important;
                                     align-items: center !important;
                                     justify-content: center !important;
-                                    width: auto !important;
-                                    min-height: 36px !important;
+                                    min-height: 32px !important;
                                     padding: 8px 12px !important;
-                                    margin: 0 !important;
                                     background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
                                     color: white !important;
                                     border: none !important;
                                     border-radius: 6px !important;
-                                    cursor: pointer !important;
-                                    font-size: 0.875rem !important;
+                                    font-size: 0.85rem !important;
                                     font-weight: 500 !important;
-                                    pointer-events: auto !important;
-                                    user-select: none !important;
-                                    z-index: 1001 !important;
-                                    position: relative !important;
-                                    transition: all 0.2s ease !important;
-                                    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
                                 `;
                             });
                         }
-                        
-                        // Hide DataTables' built-in search and use our custom search
-                        if (filter) { filter.style.display = 'none'; }
-                        
-                        // Setup custom search functionality
-                        const customSearchInput = document.getElementById('historySearchInput');
-                        if (customSearchInput) {
-                            customSearchInput.addEventListener('input', function() {
-                                dt.search(this.value).draw();
-                            });
+                        if (filter) {
+                            filter.style.cssText = `
+                                margin: 0 0 12px 0 !important;
+                                float: right !important;
+                                text-align: right !important;
+                            `;
+                            const input = filter.querySelector('input');
+                            if (input) {
+                                input.style.width = '260px';
+                                input.style.maxWidth = '100%';
+                                input.placeholder = 'Search...';
+                            }
                         }
                     } catch(err) {
-                        console.warn('Error enhancing delivery history DataTables:', err);
+                        console.warn('Error aligning delivery history toolbar:', err);
                     }
                 }, 100);
             }
@@ -4145,4 +4307,3 @@ window.updateDeliveryStatus = updateDeliveryStatus;
 window.toggleDeliveryDetails = toggleDeliveryDetails;
 window.toggleBarangayDeliveryDetails = toggleBarangayDeliveryDetails;
 window.printBarangayDeliveryReceipt = printBarangayDeliveryReceipt;
-

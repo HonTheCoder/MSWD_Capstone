@@ -340,6 +340,113 @@ export async function addResidentToFirestore(residentData) {
     }
 }
 
+// ===== Simple Session Management =====
+
+// Check if user is currently logged in elsewhere
+export async function isUserLoggedInElsewhere(username) {
+    try {
+        const userQuery = query(collection(db, "users"), where("username", "==", username));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (userSnapshot.empty) {
+            console.log('User not found in database:', username);
+            return false;
+        }
+        
+        const userData = userSnapshot.docs[0].data();
+        const isLoggedIn = userData.isLoggedIn === true;
+        
+        console.log(`🔍 Login check for ${username}:`, {
+            isLoggedIn: userData.isLoggedIn,
+            loginTime: userData.loginTime,
+            logoutTime: userData.logoutTime
+        });
+        
+        return isLoggedIn;
+    } catch (error) {
+        console.error('Error checking user login status:', error);
+        return false;
+    }
+}
+
+// Mark user as logged in
+export async function setUserLoggedIn(username) {
+    try {
+        const userQuery = query(collection(db, "users"), where("username", "==", username));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDocId = userSnapshot.docs[0].id;
+            await updateDoc(doc(db, "users", userDocId), {
+                isLoggedIn: true,
+                loginTime: serverTimestamp()
+            });
+        }
+        
+        console.log(`✅ User ${username} marked as logged in`);
+    } catch (error) {
+        console.error('Error setting user login status:', error);
+    }
+}
+
+// Mark user as logged out
+export async function setUserLoggedOut(username) {
+    try {
+        console.log(`🚪 Starting logout process for: ${username}`);
+        const userQuery = query(collection(db, "users"), where("username", "==", username));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDocId = userSnapshot.docs[0].id;
+            const currentData = userSnapshot.docs[0].data();
+            
+            console.log('Current user data before logout:', {
+                isLoggedIn: currentData.isLoggedIn,
+                loginTime: currentData.loginTime,
+                logoutTime: currentData.logoutTime
+            });
+            
+            await updateDoc(doc(db, "users", userDocId), {
+                isLoggedIn: false,
+                logoutTime: serverTimestamp()
+            });
+            
+            console.log(`✅ Database updated - User ${username} marked as logged out`);
+        } else {
+            console.warn(`⚠️ User ${username} not found in database during logout`);
+        }
+    } catch (error) {
+        console.error('Error setting user logout status:', error);
+        throw error;
+    }
+}
+
+// Force clear login status (for debugging stuck states)
+export async function forceLogoutUser(username) {
+    try {
+        console.log(`🔄 Force clearing login status for: ${username}`);
+        const userQuery = query(collection(db, "users"), where("username", "==", username));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDocId = userSnapshot.docs[0].id;
+            await updateDoc(doc(db, "users", userDocId), {
+                isLoggedIn: false,
+                logoutTime: serverTimestamp(),
+                forceLogout: true
+            });
+            console.log(`✅ Force logout completed for ${username}`);
+            return true;
+        } else {
+            console.warn(`User ${username} not found`);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error in force logout:', error);
+        throw error;
+    }
+}
+
 // ✅ Export Everything Needed
 export { 
     db, 
