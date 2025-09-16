@@ -278,6 +278,42 @@ export async function isDeliveryDeducted(deliveryId) {
     return !!snap.data()?.inventoryDeducted;
 }
 
+// ✅ Check if sufficient inventory is available for delivery
+async function validateInventoryAvailability(requestedGoods) {
+    try {
+        const currentInventory = await getInventoryTotals();
+        const validationResult = {
+            isValid: true,
+            insufficientItems: [],
+            availableStock: currentInventory,
+            requestedItems: requestedGoods
+        };
+
+        // Check each item type
+        const itemTypes = ['rice', 'biscuits', 'canned', 'shirts'];
+        
+        for (const item of itemTypes) {
+            const available = currentInventory[item] || 0;
+            const requested = Number(requestedGoods[item]) || 0;
+            
+            if (requested > available) {
+                validationResult.isValid = false;
+                validationResult.insufficientItems.push({
+                    item,
+                    requested,
+                    available,
+                    shortage: requested - available
+                });
+            }
+        }
+
+        return validationResult;
+    } catch (error) {
+        console.error('Error validating inventory availability:', error);
+        throw error;
+    }
+}
+
 // ✅ Get Deliveries for Barangay (on the Barangay's page)
 export async function getDeliveries(barangay) {
     try {
@@ -469,5 +505,6 @@ export {
     Timestamp,
     runTransaction,
     orderBy,
-    limit
+    limit,
+    validateInventoryAvailability  // ✅ Added for inventory validation
 };

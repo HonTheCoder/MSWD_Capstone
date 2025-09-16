@@ -130,7 +130,8 @@ import {
     getInventoryLogs,
     markDeliveryDeducted,
     isDeliveryDeducted,
-    getDeliveries
+    getDeliveries,
+    validateInventoryAvailability
 } from './firebase.js';
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -783,6 +784,11 @@ async function updateDeliveryStatus(deliveryId, newStatus) {
         if (typeof window.refreshInventoryTotals === 'function') {
             await window.refreshInventoryTotals();
         }
+        
+        // ✅ Update inventory display in delivery form
+        if (typeof updateInventoryDisplay === 'function') {
+            await updateInventoryDisplay();
+        }
     } catch (error) {
         console.error("Error updating delivery status:", error);
         showError("Failed to update delivery status. Please try again.");
@@ -831,6 +837,54 @@ async function handleScheduleDelivery() {
                 });
             } else {
                 showError("All fields are required!");
+            }
+            return;
+        }
+
+        // ✅ NEW: Validate inventory availability before scheduling delivery
+        try {
+            const inventoryValidation = await validateInventoryAvailability(goods);
+            
+            if (!inventoryValidation.isValid) {
+                const insufficientItemsText = inventoryValidation.insufficientItems
+                    .map(item => `${item.item}: requested ${item.requested}, available ${item.available} (shortage: ${item.shortage})`)
+                    .join('\n');
+                
+                const errorMessage = `Insufficient inventory for this delivery:\n\n${insufficientItemsText}\n\nPlease add more stock to inventory before scheduling this delivery.`;
+                
+                if (window.Swal) {
+                    await Swal.fire({
+                        title: 'Insufficient Inventory',
+                        text: errorMessage,
+                        icon: 'warning',
+                        confirmButtonText: 'Add Stock First',
+                        confirmButtonColor: '#f59e0b',
+                        background: '#ffffff',
+                        color: '#1f2937',
+                        didOpen: (popup) => {
+                            popup.style.borderTop = '6px solid #f59e0b';
+                            popup.style.borderBottom = '6px solid #ef4444';
+                        }
+                    });
+                } else {
+                    showError(errorMessage);
+                }
+                return; // Prevent delivery scheduling
+            }
+        } catch (inventoryError) {
+            console.error('Error validating inventory:', inventoryError);
+            const errorMessage = 'Unable to validate inventory availability. Please try again.';
+            
+            if (window.Swal) {
+                await Swal.fire({
+                    title: 'Validation Error',
+                    text: errorMessage,
+                    icon: 'error',
+                    confirmButtonText: 'Retry',
+                    confirmButtonColor: '#2563eb'
+                });
+            } else {
+                showError(errorMessage);
             }
             return;
         }
@@ -903,6 +957,189 @@ async function handleScheduleDelivery() {
 
 // Global variable to store all deliveries for filtering
 let allDeliveries = [];
+
+// Global variable to store current inventory for real-time updates
+let currentInventory = { rice: 0, biscuits: 0, canned: 0, shirts: 0 };
+
+// ✅ Function to update inventory display with color-coded quantities
+async function updateInventoryDisplay() {
+    try {
+        // Fetch current inventory totals
+        currentInventory = await getInventoryTotals();
+        
+        // Update each inventory hint
+        const inventoryHints = {
+            'riceInventory': { item: 'rice', label: 'Rice' },
+            'biscuitsInventory': { item: 'biscuits', label: 'Biscuits' },
+            'cannedInventory': { item: 'canned', label: 'Canned Goods' },
+            'shirtsInventory': { item: 'shirts', label: 'Shirts' }
+        };
+        
+        // Update inventory hints for each item
+        Object.entries(inventoryHints).forEach(([elementId, config]) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const quantity = currentInventory[config.item] || 0;
+                const color = getInventoryColor(quantity);
+                
+                element.textContent = `(Available: ${quantity})`;
+                element.style.color = color;
+                element.style.fontWeight = '600';
+                element.style.fontSize = '0.85em';
+            }
+        });
+        
+        // Update form labels to include quantities
+        updateFormLabelsWithInventory();
+        
+        // Update main inventory summary if visible
+        updateMainInventorySummary();
+        
+    } catch (error) {
+        console.error('Error updating inventory display:', error);
+    }
+}
+
+// ✅ Get appropriate color for inventory quantity
+function getInventoryColor(quantity, isExceeding = false) {
+    if (isExceeding) return '#ef4444'; // Red for exceeding stock
+    if (quantity === 0) return '#9ca3af'; // Gray for empty
+    if (quantity > 0 && quantity <= 10) return '#f59e0b'; // Orange for low stock
+    return '#10b981'; // Green for good stock
+}
+
+// ✅ Update form labels with inventory quantities (shows remaining after input)
+function updateFormLabelsWithInventory() {
+    const labelMappings = {
+        'goodsRice': { item: 'rice', baseText: 'Rice (sacks)' },
+        'goodsBiscuits': { item: 'biscuits', baseText: 'Biscuits (boxes)' },
+        'goodsCanned': { item: 'canned', baseText: 'Canned Goods (boxes)' },
+        'goodsShirts': { item: 'shirts', baseText: 'Shirts (packs)' }
+    };
+    
+    Object.entries(labelMappings).forEach(([inputId, config]) => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            const label = input.parentElement.querySelector('label');
+            if (label) {
+                const totalStock = currentInventory[config.item] || 0;
+                const requestedAmount = Number(input.value) || 0;
+                const remainingStock = Math.max(0, totalStock - requestedAmount);
+                
+                // Determine color based on remaining stock and validity
+                let color, statusText;
+                if (requestedAmount > totalStock) {
+                    color = '#ef4444'; // Red for exceeding stock
+                    statusText = `Exceeds by ${requestedAmount - totalStock}! Total: ${totalStock}`;
+                } else if (remainingStock === 0 && requestedAmount > 0) {
+                    color = '#9ca3af'; // Gray for exactly zero remaining
+                    statusText = `Remaining: 0 (Total: ${totalStock})`;
+                } else if (remainingStock <= 10 && remainingStock > 0) {
+                    color = '#f59e0b'; // Orange for low remaining stock
+                    statusText = `Remaining: ${remainingStock} (Total: ${totalStock})`;
+                } else {
+                    color = '#10b981'; // Green for good remaining stock
+                    statusText = `Remaining: ${remainingStock} (Total: ${totalStock})`;
+                }
+                
+                // Update label text with remaining stock info
+                label.innerHTML = `${config.baseText} <span style="color: ${color}; font-weight: 600; font-size: 0.85em;">(${statusText})</span>`;
+            }
+        }
+    });
+}
+
+// ✅ Update main inventory summary display
+function updateMainInventorySummary() {
+    const summaryElement = document.getElementById('currentInventoryDisplay');
+    const containerElement = document.getElementById('inventorySummary');
+    
+    if (summaryElement && containerElement) {
+        const items = [
+            `Rice: ${currentInventory.rice}`,
+            `Biscuits: ${currentInventory.biscuits}`,
+            `Canned: ${currentInventory.canned}`,
+            `Shirts: ${currentInventory.shirts}`
+        ];
+        
+        summaryElement.textContent = items.join(' | ');
+        containerElement.style.display = 'block';
+    }
+}
+
+// ✅ Real-time validation styling for input fields
+function updateInputValidationStyling() {
+    const inputs = {
+        'goodsRice': 'rice',
+        'goodsBiscuits': 'biscuits', 
+        'goodsCanned': 'canned',
+        'goodsShirts': 'shirts'
+    };
+    
+    Object.entries(inputs).forEach(([inputId, item]) => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            const requested = Number(input.value) || 0;
+            const available = currentInventory[item] || 0;
+            
+            // Remove previous validation classes
+            input.classList.remove('input-valid', 'input-warning', 'input-error', 'input-zero');
+            
+            // Add appropriate validation class
+            if (requested === 0) {
+                // No special styling for zero, but show total stock in tooltip
+                input.title = `Total available: ${available}`;
+            } else if (requested > available) {
+                input.classList.add('input-error'); // Red border for exceeding stock
+                input.title = `Exceeds available stock by ${requested - available}! Available: ${available}`;
+            } else if (requested === available) {
+                input.classList.add('input-zero'); // White/gray border for using all stock (remaining = 0)
+                input.title = `Using all available stock (${available}). Remaining: 0`;
+            } else if (requested > available * 0.8) {
+                input.classList.add('input-warning'); // Orange border for high usage
+                const remaining = available - requested;
+                input.title = `High usage. Remaining: ${remaining} of ${available}`;
+            } else {
+                input.classList.add('input-valid'); // Green border for valid amounts
+                const remaining = available - requested;
+                input.title = `Valid amount. Remaining: ${remaining} of ${available}`;
+            }
+        }
+    });
+}
+
+// ✅ Setup event listeners for inventory tracking
+function setupInventoryEventListeners() {
+    const inventoryInputs = ['goodsRice', 'goodsBiscuits', 'goodsCanned', 'goodsShirts'];
+    
+    inventoryInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            // Add inventory-input class for styling
+            input.classList.add('inventory-input');
+            
+            // Add real-time validation on input
+            input.addEventListener('input', function() {
+                updateInputValidationStyling();
+                updateFormLabelsWithInventory(); // ✅ Update remaining stock display
+            });
+            
+            // Add validation on blur (when user leaves field)
+            input.addEventListener('blur', function() {
+                updateInputValidationStyling();
+                updateFormLabelsWithInventory(); // ✅ Update remaining stock display
+            });
+            
+            // Add validation on keyup for immediate feedback
+            input.addEventListener('keyup', function() {
+                updateFormLabelsWithInventory(); // ✅ Update remaining stock display
+            });
+        }
+    });
+    
+    // Initial validation styling
+    updateInputValidationStyling();
+}
 
 function loadAllDeliveriesForAdmin() {
     const tableBody = document.getElementById("adminDeliveriesTableBody");
@@ -1443,6 +1680,7 @@ function verifyGlobalFunctions() {
 window.clearDeliveryFilters = clearDeliveryFilters;
 window.deleteDelivery = deleteDelivery;
 window.printDeliveryReceipt = printDeliveryReceipt;
+window.updateInventoryDisplay = updateInventoryDisplay; // ✅ For global access
 // Printable delivery receipt
 async function printDeliveryReceipt(deliveryId) {
     try {
@@ -2018,6 +2256,13 @@ function showSection(sectionId) {
         });
         if (typeof loadBarangayDropdown === "function") loadBarangayDropdown();
         if (typeof loadAllDeliveriesForAdmin === "function") loadAllDeliveriesForAdmin();
+        
+        // ✅ Initialize inventory display and event listeners
+        setTimeout(async () => {
+            await updateInventoryDisplay();
+            setupInventoryEventListeners();
+        }, 100);
+        
         // Bring section into view
         try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_) {}
     }
