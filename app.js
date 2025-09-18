@@ -136,7 +136,8 @@ import {
     checkActiveSession,
     createUserSession,
     terminateUserSession,
-    cleanupExpiredSessions
+    cleanupExpiredSessions,
+    validateCurrentSession
 } from './firebase.js';
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -188,6 +189,14 @@ async function ensureDataTables() {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         console.log("✅ User is logged in:", user.email);
+        
+        // Skip initialization if this is the admin user already logged in
+        // This prevents redirect when the admin creates a new account
+        if (loggedInUserData && loggedInUserData.email === user.email) {
+            console.log('💡 Admin already logged in, skipping re-initialization');
+            return;
+        }
+        
         const q = query(collection(db, "users"), where("email", "==", user.email));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
@@ -494,12 +503,12 @@ async function handleRequestAccount(event) {
     
     const form = event.target;
     const submitBtn = form.querySelector('button[type="submit"]');
-    const username = document.getElementById('requestUsername').value.trim();
+    const barangayName = document.getElementById('requestUsername').value.trim();
     const email = document.getElementById('requestEmail').value.trim();
     const contact = document.getElementById('requestContact').value.trim();
     const message = document.getElementById('requestMessage').value.trim();
     
-    if (!username || !email || !contact || !message) {
+    if (!barangayName || !email || !contact || !message) {
         showError('Please fill in all fields');
         return false;
     }
@@ -519,30 +528,74 @@ async function handleRequestAccount(event) {
     });
     
     if (submitBtn) {
+        submitBtn.disabled = true;
         submitBtn.innerHTML = '<span>⏳</span> Submitting Request...';
     }
     
     try {
-        await requestAccount(username, email, contact, message);
-        showSuccess('Account request submitted successfully! We will review your request and get back to you soon.');
+        // Explicitly call with parameter names matching the function definition
+        await requestAccount(barangayName, email, contact, message);
+        
+        // Show success message with Swal if available or fallback
+        if (window.Swal) {
+            await Swal.fire({
+                title: '✅ Request Submitted',
+                text: 'Account request submitted successfully! We will review your request and get back to you soon.',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        } else {
+            showSuccess('Account request submitted successfully! We will review your request and get back to you soon.');
+        }
+        
         hideRequestAccount();
         form.reset();
         return true;
     } catch (error) {
         console.error('Request account error:', error);
-        showError('Failed to submit request. Please try again.');
+        
+        // Show error message with Swal if available or fallback
+        if (window.Swal) {
+            await Swal.fire({
+                title: '❌ Request Failed',
+                text: 'Failed to submit request. Please try again.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#2563eb',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #ef4444';
+                    popup.style.borderBottom = '6px solid #2563eb';
+                }
+            });
+        } else {
+            showError('Failed to submit request. Please try again.');
+        }
         return false;
     } finally {
+        // Force immediate UI update for button
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Submit Request';
+        }
+        
+        // Re-enable other form elements with a small delay
         setTimeout(() => {
             formInputs.forEach(input => {
-                input.disabled = false;
-                input.style.opacity = '';
+                if (input !== submitBtn) { // Skip button as we already updated it
+                    input.disabled = false;
+                    input.style.opacity = '';
+                }
             });
-            
-            if (submitBtn) {
-                submitBtn.innerHTML = 'Submit Request';
-            }
-        }, 1000);
+        }, 500);
     }
 }
 
@@ -3966,52 +4019,148 @@ function closeApproveModal() {
 // Updated approve request function
 async function approveRequest(requestId, barangayName, terrain, password) {
     try {
+        console.log('🔄 Starting approval process for:', barangayName);
+        
+        // Store the current admin's auth state before any operations
+        const currentAdmin = auth.currentUser;
+        const adminEmail = currentAdmin?.email;
+        const adminUserData = loggedInUserData;
+        
+        console.log('💾 Storing admin session:', adminEmail);
+        
         // Create the user account using same email format as existing system
         const formattedBarangay = barangayName.toLowerCase().replace(/\s+/g, '');
         const email = `${formattedBarangay}@example.com`;
         const username = `barangay_${formattedBarangay}`;
         
+        console.log('📧 Creating account:', { email, username });
+        
         // Check if user already exists first
         const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-        let userCredential;
         
         if (signInMethods.length > 0) {
-            // User already exists in Auth, just create Firestore document
-            await createUserInFirestore('already-in-auth', username, email, "barangay");
-        } else {
-            // Create new user account
-            userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            
-            // Create user document with terrain info
-            await setDoc(doc(db, 'users', userCredential.user.uid), {
-                uid: userCredential.user.uid,
-                username: username,
-                email: email,
-                role: 'barangay',
-                barangayName: barangayName,
-                terrain: terrain,  // Store terrain with user account
-                contact: document.getElementById('approveContact').value,
-                approved: true,
-                dateApproved: new Date(),
-                createdAt: new Date(),
-                isFirstLogin: true
-            });
+            throw new Error(`Account already exists for ${email}. Please use a different barangay name.`);
         }
+        
+        // Create new user account in Firebase Auth (this will temporarily log in the new user)
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUserId = userCredential.user.uid;
+        console.log('✅ Firebase Auth user created:', newUserId);
+        
+        // Create user document in Firestore first (while we still have the auth context)
+        const userDocRef = await addDoc(collection(db, 'users'), {
+            uid: newUserId,
+            username: username,
+            email: email,
+            role: 'barangay',
+            barangayName: barangayName,
+            terrain: terrain,
+            contact: document.getElementById('approveContact').value || '',
+            approved: true,
+            dateApproved: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            isFirstLogin: true,
+            // Initialize session fields
+            sessionId: null,
+            isActive: false,
+            lastLogin: null,
+            lastLogout: null,
+            loginTimestamp: null
+        });
+        
+        console.log('✅ Firestore user document created:', userDocRef.id);
         
         // Update the request status
         await updateDoc(doc(db, 'accountRequests', requestId), {
             status: 'approved',
-            dateApproved: new Date(),
-            approvedTerrain: terrain
+            dateApproved: serverTimestamp(),
+            approvedTerrain: terrain,
+            createdUserId: newUserId
         });
         
-        showSuccess(`Account approved for ${barangayName} with ${terrain} terrain`);
+        console.log('✅ Request status updated');
+        
+        // Sign out the newly created user immediately
+        await auth.signOut();
+        console.log('🔐 Signed out new user');
+        
+        // Close modal immediately
         closeApproveModal();
-        loadPendingRequests(); // Refresh the requests list
+        
+        // Show success modal with account details
+        if (window.Swal) {
+            await Swal.fire({
+                title: '✅ Account Approved Successfully!',
+                html: `
+                    <div style="text-align: left; margin: 15px 0;">
+                        <p><strong>Account created for: ${barangayName}</strong></p>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #16a34a;">
+                            <p style="margin: 0 0 10px 0;"><strong>Login Details:</strong></p>
+                            <p style="margin: 5px 0; font-family: monospace; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <strong>Email:</strong> ${email}
+                            </p>
+                            <p style="margin: 5px 0; font-family: monospace; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <strong>Password:</strong> ${password}
+                            </p>
+                            <p style="margin: 5px 0; font-family: monospace; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <strong>Terrain:</strong> ${terrain}
+                            </p>
+                        </div>
+                        <p style="color: #6b7280; font-size: 0.9em; margin-top: 15px;">
+                            ℹ️ The barangay can now log in using these credentials.
+                        </p>
+                    </div>
+                `,
+                icon: 'success',
+                confirmButtonText: 'Continue',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        } else {
+            alert(`Account approved for ${barangayName}!\n\nLogin Details:\nEmail: ${email}\nPassword: ${password}\nTerrain: ${terrain}`);
+        }
+        
+        // Force page refresh to restore admin session
+        console.log('🔄 Refreshing page to restore admin session...');
+        window.location.reload();
         
     } catch (error) {
-        console.error('Error approving request:', error);
-        showError('Failed to approve request: ' + error.message);
+        console.error('❌ Error approving request:', error);
+        let errorMessage = 'Failed to approve request: ' + error.message;
+        
+        // Handle specific Firebase Auth errors
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = `Account already exists for this barangay. Please check if ${barangayName} already has an account.`;
+        } else if (error.code === 'auth/weak-password') {
+            errorMessage = 'Password is too weak. Please choose a stronger password (at least 6 characters).';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = 'Invalid email format generated. Please check the barangay name.';
+        }
+        
+        if (window.Swal) {
+            await Swal.fire({
+                title: '❌ Approval Failed',
+                text: errorMessage,
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#2563eb',
+                background: '#ffffff',
+                color: '#1f2937',
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #ef4444';
+                    popup.style.borderBottom = '6px solid #2563eb';
+                }
+            });
+        } else {
+            showError(errorMessage);
+        }
     }
 }
 
