@@ -131,7 +131,12 @@ import {
     markDeliveryDeducted,
     isDeliveryDeducted,
     getDeliveries,
-    validateInventoryAvailability
+    validateInventoryAvailability,
+    // Enhanced session management functions
+    checkActiveSession,
+    createUserSession,
+    terminateUserSession,
+    cleanupExpiredSessions
 } from './firebase.js';
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -206,6 +211,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // Override global functions with full implementations
     setupGlobalFunctions();
+    
+    // 🔥 NEW: Initialize session management and monitoring
+    initializeSessionManagement();
 });
 
     document.getElementById("loginForm")?.addEventListener("submit", handleLogin);
@@ -289,23 +297,106 @@ async function handleLogin(event) {
     passwordField.disabled = true;
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span>⏳</span> Logging in...';
+        submitBtn.innerHTML = '<span>⏳</span> Checking session...';
     }
 
     try {
+        // 🔥 NEW: Check for existing active session before attempting login
+        const sessionCheck = await checkActiveSession(email);
+        
+        if (sessionCheck.hasActiveSession) {
+            // Show session conflict dialog
+            const loginTime = sessionCheck.loginTimestamp ? 
+                new Date(sessionCheck.loginTimestamp).toLocaleString() : 'Unknown';
+            const userAgent = sessionCheck.userAgent || 'Unknown device';
+            
+            let dialogResult;
+            if (window.Swal) {
+                dialogResult = await Swal.fire({
+                    title: '⚠️ Account Already Active',
+                    html: `
+                        <div style="text-align: left; margin: 10px 0;">
+                            <p><strong>This account is already logged in elsewhere:</strong></p>
+                            <ul style="text-align: left; margin-left: 20px;">
+                                <li>Last login: ${loginTime}</li>
+                                <li>Device: ${userAgent}</li>
+                            </ul>
+                            <p>You can:</p>
+                            <ul style="text-align: left; margin-left: 20px;">
+                                <li><strong>Terminate</strong> the other session and login here</li>
+                                <li><strong>Cancel</strong> this login attempt</li>
+                            </ul>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Terminate & Login',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#f59e0b',
+                    cancelButtonColor: '#6b7280',
+                    background: '#ffffff',
+                    color: '#1f2937',
+                    didOpen: (popup) => {
+                        popup.style.borderTop = '6px solid #f59e0b';
+                        popup.style.borderBottom = '6px solid #ef4444';
+                    }
+                });
+            } else {
+                dialogResult = {
+                    isConfirmed: confirm(`This account is already logged in elsewhere (${loginTime}).\n\nDo you want to terminate the other session and login here?`)
+                };
+            }
+            
+            if (!dialogResult.isConfirmed) {
+                // User chose to cancel
+                if (window.Swal) {
+                    await Swal.fire({
+                        title: 'Login Cancelled',
+                        text: 'Login attempt was cancelled.',
+                        icon: 'info',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#2563eb'
+                    });
+                } else {
+                    showInfo('Login attempt was cancelled.');
+                }
+                return false;
+            } else {
+                // User chose to terminate other session - terminate it
+                await terminateUserSession(email);
+                console.log('✅ Previous session terminated, proceeding with new login');
+            }
+        }
+        
+        // Update button text for actual authentication
+        if (submitBtn) {
+            submitBtn.innerHTML = '<span>⏳</span> Authenticating...';
+        }
+        
+        // Proceed with Firebase authentication
         await signInWithEmailAndPassword(auth, email, password);
+        
+        // 🔥 NEW: Create new session after successful authentication
+        const sessionId = await createUserSession(email, { username: normalized });
+        console.log(`✅ New session created: ${sessionId}`);
+        
+        // Store session ID for later validation
+        localStorage.setItem('currentSessionId', sessionId);
+        localStorage.setItem('currentUserEmail', email);
+        
         // Modern success popup (UI-only)
         const isBarangayUser = normalized.startsWith('barangay_');
         const successWelcomeText = isBarangayUser ? 'Welcome, Barangay!' : 'Welcome, Admin!';
         if (window.Swal) {
             await Swal.fire({
-                title: 'Login Successful',
+                title: '✅ Login Successful',
                 text: successWelcomeText,
                 icon: 'success',
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#16a34a',
                 background: '#ffffff',
                 color: '#1f2937',
+                timer: 3000,
                 didOpen: (popup) => {
                     // Add subtle blue/green accent border to match theme
                     popup.style.borderTop = '6px solid #2563eb';
@@ -313,15 +404,25 @@ async function handleLogin(event) {
                 }
             });
         } else {
-            showSuccess('Login successful! Redirecting...');
+            showSuccess('Login successful! Session created. Redirecting...');
         }
         return true;
     } catch (error) {
+        console.error('Login error:', error);
         // Modern error popup (UI-only)
+        let errorMessage = 'Login failed. Please try again.';
+        
+        // Handle specific session-related errors
+        if (error.message && error.message.includes('session')) {
+            errorMessage = 'Session management error. Please try again.';
+        } else {
+            errorMessage = mapAuthError(error);
+        }
+        
         if (window.Swal) {
             await Swal.fire({
-                title: 'Login Failed',
-                text: 'Invalid username or password',
+                title: '❌ Login Failed',
+                text: errorMessage,
                 icon: 'error',
                 confirmButtonText: 'Retry',
                 confirmButtonColor: '#2563eb',
@@ -334,7 +435,7 @@ async function handleLogin(event) {
                 }
             });
         } else {
-            showError(mapAuthError(error));
+            showError(errorMessage);
         }
         return false;
     } finally {
@@ -356,6 +457,9 @@ async function initializeUser(userData) {
     document.getElementById('loginContainer').classList.add('hidden');
     document.getElementById('dashboardContainer').classList.remove('hidden');
     document.getElementById('userRole').innerText = `Welcome, ${userData.role.toUpperCase()}`;
+
+    // 🔥 NEW: Initialize session status display
+    updateSessionStatusUI();
 
     if (userData.role === 'mswd') {
         document.querySelectorAll('.mswd-only').forEach(el => el.style.display = 'block');
@@ -446,7 +550,256 @@ function showRequestAccount() { document.getElementById("requestAccountModal").c
 function hideRequestAccount() { document.getElementById("requestAccountModal").classList.add("hidden"); }
     
 
-window.logout = function () { auth.signOut(); location.reload(); };
+// 🔥 SESSION MANAGEMENT INITIALIZATION AND MONITORING
+
+// Initialize session management system
+function initializeSessionManagement() {
+    console.log('🔄 Initializing session management system...');
+    
+    // Run cleanup on startup
+    cleanupExpiredSessions().catch(error => {
+        console.error('Error during startup session cleanup:', error);
+    });
+    
+    // Set up periodic session cleanup (every 30 minutes)
+    setInterval(() => {
+        console.log('🗑️ Running periodic session cleanup...');
+        cleanupExpiredSessions().catch(error => {
+            console.error('Error during periodic session cleanup:', error);
+        });
+    }, 30 * 60 * 1000); // 30 minutes
+    
+    // Set up session validation for current user (every 5 minutes)
+    setInterval(() => {
+        validateCurrentUserSessionWithUI();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    // Set up page visibility change handler
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Set up beforeunload handler for clean session termination
+    window.addEventListener('beforeunload', handlePageUnload);
+    
+    console.log('✅ Session management system initialized');
+}
+
+// Validate current user's session
+async function validateCurrentUserSession() {
+    const currentEmail = localStorage.getItem('currentUserEmail');
+    const sessionId = localStorage.getItem('currentSessionId');
+    
+    if (currentEmail && sessionId) {
+        try {
+            const isValid = await validateCurrentSession(currentEmail, sessionId);
+            if (!isValid) {
+                console.warn('⚠️ Current session is no longer valid, logging out...');
+                if (window.Swal) {
+                    await Swal.fire({
+                        title: '🔒 Session Expired',
+                        text: 'Your session has expired. Please log in again.',
+                        icon: 'warning',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#f59e0b',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                }
+                // Force logout
+                await window.logout();
+            }
+        } catch (error) {
+            console.error('Error validating current session:', error);
+        }
+    }
+}
+
+// Handle page visibility changes (for session activity tracking)
+function handleVisibilityChange() {
+    if (document.hidden) {
+        console.log('📵 Page hidden - user switched tabs/apps');
+    } else {
+        console.log('📱 Page visible - user returned to tab');
+        // Validate session when user returns and update UI
+        validateCurrentUserSessionWithUI();
+    }
+}
+
+// Handle page unload (for clean session termination)
+function handlePageUnload(event) {
+    // Note: This is best-effort - not all browsers guarantee this will run
+    const currentEmail = localStorage.getItem('currentUserEmail');
+    if (currentEmail) {
+        // Use navigator.sendBeacon for better reliability
+        console.log('🚀 Page unloading - attempting session cleanup');
+        // In a real application, you might send a beacon to a server endpoint
+        // that handles session cleanup server-side
+    }
+}
+
+// 🔥 SESSION STATUS UI MANAGEMENT
+
+// Update session status indicator in the UI
+function updateSessionStatusUI(status = 'active') {
+    const sessionStatusEl = document.getElementById('sessionStatus');
+    const sessionDotEl = document.getElementById('sessionDot');
+    const sessionTextEl = document.getElementById('sessionText');
+    const sessionTimeEl = document.getElementById('sessionTime');
+    
+    if (!sessionStatusEl) return; // Element might not exist on login page
+    
+    // Show the session status
+    sessionStatusEl.style.display = 'block';
+    
+    // Get current session info from localStorage
+    const currentEmail = localStorage.getItem('currentUserEmail');
+    const sessionId = localStorage.getItem('currentSessionId');
+    
+    if (currentEmail && sessionId) {
+        // Update session time
+        const now = new Date();
+        sessionTimeEl.textContent = now.toLocaleTimeString();
+        
+        // Update status based on parameter
+        sessionDotEl.className = `session-dot ${status}`;
+        
+        switch (status) {
+            case 'active':
+                sessionTextEl.textContent = 'Active Session';
+                break;
+            case 'expired':
+                sessionTextEl.textContent = 'Session Expired';
+                break;
+            case 'invalid':
+                sessionTextEl.textContent = 'Invalid Session';
+                break;
+            default:
+                sessionTextEl.textContent = 'Session Status';
+        }
+    } else {
+        // Hide if no session info available
+        sessionStatusEl.style.display = 'none';
+    }
+}
+
+// Hide session status (used during logout)
+function hideSessionStatusUI() {
+    const sessionStatusEl = document.getElementById('sessionStatus');
+    if (sessionStatusEl) {
+        sessionStatusEl.style.display = 'none';
+    }
+}
+
+// Update session validation to also update UI
+async function validateCurrentUserSessionWithUI() {
+    const currentEmail = localStorage.getItem('currentUserEmail');
+    const sessionId = localStorage.getItem('currentSessionId');
+    
+    if (currentEmail && sessionId) {
+        try {
+            const isValid = await validateCurrentSession(currentEmail, sessionId);
+            if (!isValid) {
+                console.warn('⚠️ Current session is no longer valid, updating UI...');
+                updateSessionStatusUI('invalid');
+                
+                // Show session expired dialog
+                if (window.Swal) {
+                    await Swal.fire({
+                        title: '🔒 Session Expired',
+                        text: 'Your session has expired. Please log in again.',
+                        icon: 'warning',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#f59e0b',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                }
+                
+                // Force logout
+                await window.logout();
+            } else {
+                // Session is valid, update UI to show active status
+                updateSessionStatusUI('active');
+            }
+        } catch (error) {
+            console.error('Error validating current session:', error);
+            updateSessionStatusUI('invalid');
+        }
+    }
+}
+
+// 🔥 ENHANCED LOGOUT WITH SESSION MANAGEMENT
+window.logout = async function () {
+    try {
+        const currentEmail = localStorage.getItem('currentUserEmail');
+        const sessionId = localStorage.getItem('currentSessionId');
+        
+        console.log('🚪 Starting logout process...');
+        console.log('Current email:', currentEmail);
+        console.log('Session ID:', sessionId);
+        
+        // Terminate session in Firestore before signing out
+        if (currentEmail) {
+            try {
+                await terminateUserSession(currentEmail);
+                console.log('✅ Session terminated in Firestore');
+            } catch (error) {
+                console.error('⚠️ Error terminating session in Firestore:', error);
+                // Continue with logout even if session termination fails
+            }
+        }
+        
+        // Clear local storage and hide session status
+        localStorage.removeItem('currentSessionId');
+        localStorage.removeItem('currentUserEmail');
+        hideSessionStatusUI();
+        console.log('✅ Local storage cleared and UI updated');
+        
+        // Sign out from Firebase Auth
+        await auth.signOut();
+        console.log('✅ Firebase auth sign out complete');
+        
+        // Show logout success message before reload
+        if (window.Swal) {
+            await Swal.fire({
+                title: '👋 Logged Out',
+                text: 'You have been successfully logged out.',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#16a34a',
+                background: '#ffffff',
+                color: '#1f2937',
+                timer: 2000,
+                didOpen: (popup) => {
+                    popup.style.borderTop = '6px solid #2563eb';
+                    popup.style.borderBottom = '6px solid #16a34a';
+                }
+            });
+        }
+        
+        // Reload to reset application state
+        location.reload();
+        
+    } catch (error) {
+        console.error('❌ Error during logout:', error);
+        
+        // Still attempt to clear local state on error
+        localStorage.removeItem('currentSessionId');
+        localStorage.removeItem('currentUserEmail');
+        
+        if (window.Swal) {
+            await Swal.fire({
+                title: '⚠️ Logout Issue',
+                text: 'There was an issue during logout, but you have been signed out.',
+                icon: 'warning',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#f59e0b'
+            });
+        }
+        
+        // Force reload even on error
+        location.reload();
+    }
+};
 
 // ✅ Example kung may Change Password ka (Optional)
 // removed duplicate placeholder to avoid conflicts

@@ -376,29 +376,164 @@ export async function addResidentToFirestore(residentData) {
     }
 }
 
-// ===== Simple Session Management =====
+// ===== ENHANCED SESSION MANAGEMENT =====
 
+// Generate unique session ID
+export function generateSessionId() {
+    return Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Create or update user session
+export async function createUserSession(email, userData) {
+    try {
+        const sessionId = generateSessionId();
+        const sessionData = {
+            sessionId,
+            lastLogin: serverTimestamp(),
+            isActive: true,
+            loginTimestamp: Date.now(),
+            userAgent: navigator.userAgent || 'Unknown',
+            ipAddress: 'Client-side' // Would need server-side for real IP
+        };
+
+        // Update user document with session info
+        const userQuery = query(collection(db, "users"), where("email", "==", email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDocRef = userSnapshot.docs[0].ref;
+            await updateDoc(userDocRef, sessionData);
+            console.log(`✅ Session created for user: ${email}`);
+            return sessionId;
+        } else {
+            throw new Error('User document not found');
+        }
+    } catch (error) {
+        console.error("❌ Error creating user session:", error);
+        throw error;
+    }
+}
+
+// Check if user has an active session
+export async function checkActiveSession(email) {
+    try {
+        const userQuery = query(collection(db, "users"), where("email", "==", email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userData = userSnapshot.docs[0].data();
+            if (userData.isActive && userData.sessionId) {
+                // Check if session is still valid (within 24 hours)
+                const sessionAge = Date.now() - (userData.loginTimestamp || 0);
+                const maxSessionAge = 24 * 60 * 60 * 1000; // 24 hours
+                
+                if (sessionAge < maxSessionAge) {
+                    return {
+                        hasActiveSession: true,
+                        sessionId: userData.sessionId,
+                        lastLogin: userData.lastLogin,
+                        loginTimestamp: userData.loginTimestamp,
+                        userAgent: userData.userAgent
+                    };
+                } else {
+                    // Session expired, clean it up
+                    await terminateUserSession(email);
+                    return { hasActiveSession: false };
+                }
+            }
+        }
+        return { hasActiveSession: false };
+    } catch (error) {
+        console.error("❌ Error checking active session:", error);
+        return { hasActiveSession: false };
+    }
+}
+
+// Terminate user session
+export async function terminateUserSession(email) {
+    try {
+        const userQuery = query(collection(db, "users"), where("email", "==", email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDocRef = userSnapshot.docs[0].ref;
+            await updateDoc(userDocRef, {
+                sessionId: null,
+                isActive: false,
+                lastLogout: serverTimestamp()
+            });
+            console.log(`✅ Session terminated for user: ${email}`);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error("❌ Error terminating user session:", error);
+        throw error;
+    }
+}
+
+// Cleanup expired sessions (run periodically)
+export async function cleanupExpiredSessions() {
+    try {
+        const cutoffTime = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+        const activeUsersQuery = query(collection(db, "users"), where("isActive", "==", true));
+        const activeUsersSnapshot = await getDocs(activeUsersQuery);
+        
+        const batch = [];
+        activeUsersSnapshot.docs.forEach(doc => {
+            const userData = doc.data();
+            if (userData.loginTimestamp && userData.loginTimestamp < cutoffTime) {
+                batch.push({
+                    ref: doc.ref,
+                    data: {
+                        sessionId: null,
+                        isActive: false,
+                        lastLogout: serverTimestamp()
+                    }
+                });
+            }
+        });
+        
+        // Update expired sessions
+        for (const item of batch) {
+            await updateDoc(item.ref, item.data);
+        }
+        
+        console.log(`✅ Cleaned up ${batch.length} expired sessions`);
+        return batch.length;
+    } catch (error) {
+        console.error("❌ Error cleaning up expired sessions:", error);
+        throw error;
+    }
+}
+
+// Validate current session
+export async function validateCurrentSession(email, sessionId) {
+    try {
+        const userQuery = query(collection(db, "users"), where("email", "==", email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userData = userSnapshot.docs[0].data();
+            return userData.isActive && userData.sessionId === sessionId;
+        }
+        return false;
+    } catch (error) {
+        console.error("❌ Error validating current session:", error);
+        return false;
+    }
+}
+
+// LEGACY COMPATIBILITY FUNCTIONS (for backward compatibility)
 // Check if user is currently logged in elsewhere
 export async function isUserLoggedInElsewhere(username) {
     try {
-        const userQuery = query(collection(db, "users"), where("username", "==", username));
-        const userSnapshot = await getDocs(userQuery);
+        // Convert username to email for compatibility
+        const barangayName = username.replace('barangay_', '');
+        const email = `${barangayName}@example.com`;
         
-        if (userSnapshot.empty) {
-            console.log('User not found in database:', username);
-            return false;
-        }
-        
-        const userData = userSnapshot.docs[0].data();
-        const isLoggedIn = userData.isLoggedIn === true;
-        
-        console.log(`🔍 Login check for ${username}:`, {
-            isLoggedIn: userData.isLoggedIn,
-            loginTime: userData.loginTime,
-            logoutTime: userData.logoutTime
-        });
-        
-        return isLoggedIn;
+        const sessionCheck = await checkActiveSession(email);
+        return sessionCheck.hasActiveSession;
     } catch (error) {
         console.error('Error checking user login status:', error);
         return false;
@@ -408,17 +543,10 @@ export async function isUserLoggedInElsewhere(username) {
 // Mark user as logged in
 export async function setUserLoggedIn(username) {
     try {
-        const userQuery = query(collection(db, "users"), where("username", "==", username));
-        const userSnapshot = await getDocs(userQuery);
+        const barangayName = username.replace('barangay_', '');
+        const email = `${barangayName}@example.com`;
         
-        if (!userSnapshot.empty) {
-            const userDocId = userSnapshot.docs[0].id;
-            await updateDoc(doc(db, "users", userDocId), {
-                isLoggedIn: true,
-                loginTime: serverTimestamp()
-            });
-        }
-        
+        await createUserSession(email, { username });
         console.log(`✅ User ${username} marked as logged in`);
     } catch (error) {
         console.error('Error setting user login status:', error);
@@ -429,28 +557,11 @@ export async function setUserLoggedIn(username) {
 export async function setUserLoggedOut(username) {
     try {
         console.log(`🚪 Starting logout process for: ${username}`);
-        const userQuery = query(collection(db, "users"), where("username", "==", username));
-        const userSnapshot = await getDocs(userQuery);
+        const barangayName = username.replace('barangay_', '');
+        const email = `${barangayName}@example.com`;
         
-        if (!userSnapshot.empty) {
-            const userDocId = userSnapshot.docs[0].id;
-            const currentData = userSnapshot.docs[0].data();
-            
-            console.log('Current user data before logout:', {
-                isLoggedIn: currentData.isLoggedIn,
-                loginTime: currentData.loginTime,
-                logoutTime: currentData.logoutTime
-            });
-            
-            await updateDoc(doc(db, "users", userDocId), {
-                isLoggedIn: false,
-                logoutTime: serverTimestamp()
-            });
-            
-            console.log(`✅ Database updated - User ${username} marked as logged out`);
-        } else {
-            console.warn(`⚠️ User ${username} not found in database during logout`);
-        }
+        await terminateUserSession(email);
+        console.log(`✅ Database updated - User ${username} marked as logged out`);
     } catch (error) {
         console.error('Error setting user logout status:', error);
         throw error;
@@ -461,22 +572,9 @@ export async function setUserLoggedOut(username) {
 export async function forceLogoutUser(username) {
     try {
         console.log(`🔄 Force clearing login status for: ${username}`);
-        const userQuery = query(collection(db, "users"), where("username", "==", username));
-        const userSnapshot = await getDocs(userQuery);
-        
-        if (!userSnapshot.empty) {
-            const userDocId = userSnapshot.docs[0].id;
-            await updateDoc(doc(db, "users", userDocId), {
-                isLoggedIn: false,
-                logoutTime: serverTimestamp(),
-                forceLogout: true
-            });
-            console.log(`✅ Force logout completed for ${username}`);
-            return true;
-        } else {
-            console.warn(`User ${username} not found`);
-            return false;
-        }
+        await setUserLoggedOut(username);
+        console.log(`✅ Force logout completed for ${username}`);
+        return true;
     } catch (error) {
         console.error('Error in force logout:', error);
         throw error;

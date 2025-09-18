@@ -154,6 +154,67 @@
         vertical-align: top;
     }
     
+    /* 🔥 NEW: Session status indicator styles */
+    .session-status {
+        margin-top: 12px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 6px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .session-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    
+    .session-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+    
+    .session-dot.active {
+        background: #10b981; /* Green for active */
+    }
+    
+    .session-dot.expired {
+        background: #f59e0b; /* Orange for expired */
+        animation: none;
+    }
+    
+    .session-dot.invalid {
+        background: #ef4444; /* Red for invalid */
+        animation: none;
+    }
+    
+    .session-text {
+        font-size: 12px;
+        font-weight: 500;
+        color: #374151;
+    }
+    
+    .session-info {
+        font-size: 10px;
+        color: #6b7280;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Hide session status on mobile */
+    @media (max-width: 768px) {
+        .session-status {
+            display: none !important;
+        }
+    }
+    
     .details-preview {
         padding: 4px 0;
     }
@@ -1092,6 +1153,16 @@
         <nav class="sidebar" role="navigation" aria-label="Dashboard navigation">
             <div class="sidebar-header">
                 <h2 id="userRole">Welcome</h2>
+                <!-- 🔥 NEW: Session Status Indicator -->
+                <div id="sessionStatus" class="session-status" style="display: none;">
+                    <div class="session-indicator">
+                        <span class="session-dot active" id="sessionDot"></span>
+                        <span class="session-text" id="sessionText">Active Session</span>
+                    </div>
+                    <div class="session-info" id="sessionInfo">
+                        <small>Login: <span id="sessionTime">--</span></small>
+                    </div>
+                </div>
             </div>
             <ul class="sidebar-menu">
                 <li class="mswd-only"><a href="#" onclick="showSection('barangayManagement')">Manage Barangays</a></li>
