@@ -3090,7 +3090,201 @@ html {
     background: #9fb0c9;
 }
 
-/* ===== MOBILE-FRIENDLY STYLES ===== */
+/* ===== MOBILE-FRIENDLY STYLES =====
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* Mobile Responsive Breakpoints */
+@media (max-width: 768px) {
+    /* Dashboard Layout */
+    .dashboard-container {
+        position: relative;
+    }
+    
+    /* Show mobile header */
+    .mobile-header {
+        display: flex !important;
+    }
+    
+    /* Hide sidebar by default on mobile */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 280px;
+        transform: translateX(-100%);
+        z-index: 1000;
+        transition: transform 0.3s ease;
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Show sidebar when mobile-open class is active */
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    
+    /* Show close button on mobile */
+    .sidebar .close-sidebar {
+        display: block !important;
+    }
+    
+    /* Adjust main content for mobile */
+    .main-content {
+        width: 100% !important;
+        margin-left: 0 !important;
+        padding: 0.5rem;
+        padding-top: 60px; /* Account for mobile header */
+    }
+    
+    /* Adjust sidebar header for mobile close button */
+    .sidebar-header {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    
+    /* Mobile title positioning */
+    .mobile-title {
+        font-size: 1.1rem;
+    }
+    
+    /* Card responsive improvements */
+    .card {
+        margin-bottom: 1rem;
+        padding: 1rem;
+    }
+    
+    /* Section header mobile improvements */
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .section-header h2 {
+        font-size: 1.25rem;
+        margin-bottom: 0;
+    }
+    
+    .section-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+    
+    /* Form improvements */
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .form-actions {
+        justify-content: stretch;
+        flex-direction: column;
+    }
+    
+    .submit-btn, .cancel-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Table responsive */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .table-container table {
+        min-width: 600px;
+    }
+    
+    /* Modal improvements */
+    .modal-content {
+        width: 95vw;
+        max-width: 95vw;
+        margin: 1rem;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small screens */
+    .mobile-header {
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .sidebar {
+        width: 90vw;
+        max-width: 280px;
+    }
+    
+    .main-content {
+        padding: 0.25rem;
+        padding-top: 55px;
+    }
+    
+    /* Touch-friendly improvements */
+    .action-button, .submit-btn, .cancel-btn {
+        min-height: 44px;
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+    
+    .mobile-menu-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+    
+    .sidebar-menu a {
+        min-height: 48px;
+        padding: 16px;
+        font-size: 16px;
+    }
+    
+    .close-sidebar {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 12px;
+    }
+    
+    /* Card improvements for very small screens */
+    .card {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .card-header h3 {
+        font-size: 1rem;
+    }
+    
+    /* Table improvements */
+    .table-container table {
+        font-size: 12px;
+    }
+    
+    .table-container th, .table-container td {
+        padding: 6px 4px;
+    }
+}
 
 /* Skip Link for Accessibility */
 .skip-link {
@@ -5162,6 +5356,19 @@ html {
 #viewResidentsModal .status-worker{ background:#dcfce7; color:#166534; }
 #viewResidentsModal .status-both{ background:#fef3c7; color:#92400e; }
 #viewResidentsModal .status-none{ background:#e5e7eb; color:#374151; }
+
+/* Hide any DataTables UI elements in residents modal */
+#viewResidentsModal .dt-buttons,
+#viewResidentsModal .dataTables_filter,
+#viewResidentsModal .dataTables_info,
+#viewResidentsModal .dataTables_length,
+#viewResidentsModal .search-filter-section {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
 
 @media (max-width: 768px){
   #viewResidentsModal .residents-modal-content{ width:98vw; height:92vh; }

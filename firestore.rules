@@ -1,44 +1,175 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isAuthenticated() { return request.auth != null; }
-    function isMSWD() { return isAuthenticated() && request.auth.token.role == 'mswd'; }
-    function isBarangay() { return isAuthenticated() && request.auth.token.role == 'barangay'; }
-
+    
+    // Enhanced helper functions for validation and security
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isMSWD() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'mswd';
+    }
+    
+    function isBarangayOfficial() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'barangay';
+    }
+    
+    function isBarangayOfficialForBarangay(barangayName) {
+      return isBarangayOfficial() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username == barangayName;
+    }
+    
+    function isValidUser() {
+      return isMSWD() || isBarangayOfficial();
+    }
+    
+    function validateResidentData(data) {
+      return data.keys().hasAll(['name', 'age', 'addressZone', 'householdNumber', 'barangay', 'monthlyIncome', 'familyMembers']) &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 50 &&
+             data.age is int && data.age >= 0 && data.age <= 120 &&
+             data.addressZone is string && data.addressZone.size() >= 5 && data.addressZone.size() <= 100 &&
+             data.householdNumber is string &&
+             data.barangay is string &&
+             data.monthlyIncome is number && data.monthlyIncome >= 0 &&
+             data.familyMembers is int && data.familyMembers >= 1 && data.familyMembers <= 50 &&
+             (data.evacueeHistory is int && data.evacueeHistory >= 0 && data.evacueeHistory <= 100) &&
+             (data.aidHistory is int && data.aidHistory >= 0 && data.aidHistory <= 100) &&
+             data.houseMaterial in ['Nipa', 'Mixed', 'Concrete', 'Other'] &&
+             data.terrain in ['Highland', 'Lowland', 'Coastal', 'Urban', 'Rural'] &&
+             data.isStudent is bool &&
+             data.isWorking is bool;
+    }
+    
+    function validateInventoryData(data) {
+      return data.keys().hasAll(['rice', 'biscuits', 'canned', 'shirts']) &&
+             data.rice is number && data.rice >= 0 &&
+             data.biscuits is number && data.biscuits >= 0 &&
+             data.canned is number && data.canned >= 0 &&
+             data.shirts is number && data.shirts >= 0;
+    }
+    
+    function validateDeliveryData(data) {
+      return data.keys().hasAll(['barangay', 'deliveryDate', 'details', 'status']) &&
+             data.barangay is string &&
+             data.deliveryDate is timestamp &&
+             data.details is string && data.details.size() >= 10 &&
+             data.status in ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+    }
+    
+    // Users collection - Enhanced user management
     match /users/{userId} {
-      allow read: if isMSWD() || (isBarangay() && request.auth.uid == resource.data.uid);
-      allow write: if false;
+      allow read: if isOwner(userId) || isMSWD();
+      allow create: if isMSWD() && 
+                       request.resource.data.keys().hasAll(['uid', 'username', 'email', 'role']) &&
+                       request.resource.data.role in ['mswd', 'barangay'] &&
+                       request.resource.data.uid == userId;
+      allow update: if isMSWD() && 
+                       resource.data.uid == userId &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'email', 'isFirstLogin']);
+      allow delete: if isMSWD();
     }
-
-    match /residents/{doc} {
-      allow read: if isMSWD() || (isBarangay() && resource.data.barangay == request.auth.token.barangay);
-      allow create, update, delete: if isMSWD() || (isBarangay() && request.resource.data.barangay == request.auth.token.barangay);
+    
+    // Account requests collection - Enhanced validation
+    match /accountRequests/{requestId} {
+      allow read: if isMSWD();
+      allow create: if request.resource.data.keys().hasAll(['barangayName', 'email', 'contact', 'message', 'status', 'dateRequested']) &&
+                       request.resource.data.status == 'pending' &&
+                       request.resource.data.email.matches('.*@.*\..*') &&
+                       request.resource.data.barangayName.size() >= 3 &&
+                       request.resource.data.message.size() >= 10;
+      allow update: if isMSWD() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'processedBy', 'processedAt']);
+      allow delete: if isMSWD();
     }
-
-    match /deliveries/{doc} {
-      allow read: if isMSWD() || (isBarangay() && resource.data.barangay == request.auth.token.barangay);
-      allow create, update, delete: if isMSWD();
-      allow update: if isBarangay() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','updatedAt']) && resource.data.barangay == request.auth.token.barangay;
+    
+    // Residents collection - Enhanced validation
+    match /residents/{residentId} {
+      allow read: if isValidUser() && 
+                     (isMSWD() || isBarangayOfficialForBarangay(resource.data.barangay));
+      allow create: if isValidUser() && validateResidentData(request.resource.data) &&
+                       (isMSWD() || isBarangayOfficialForBarangay(request.resource.data.barangay)) &&
+                       request.resource.data.createdBy == request.auth.uid;
+      allow update: if isValidUser() && validateResidentData(request.resource.data) &&
+                       (isMSWD() || isBarangayOfficialForBarangay(resource.data.barangay)) &&
+                       request.resource.data.barangay == resource.data.barangay;
+      allow delete: if isMSWD() || 
+                       (isBarangayOfficialForBarangay(resource.data.barangay) && 
+                        resource.data.createdBy == request.auth.uid);
     }
-
-    match /inventory/{doc} {
-      allow read, write: if isMSWD();
+    
+    // Deliveries collection - Enhanced validation
+    match /deliveries/{deliveryId} {
+      allow read: if isValidUser() && 
+                     (isMSWD() || isBarangayOfficialForBarangay(resource.data.barangay));
+      allow create: if isMSWD() && validateDeliveryData(request.resource.data) &&
+                       request.resource.data.status == 'Pending';
+      allow update: if (isMSWD() && validateDeliveryData(request.resource.data)) ||
+                       (isBarangayOfficialForBarangay(resource.data.barangay) && 
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+                        request.resource.data.status in ['In Progress', 'Completed']);
+      allow delete: if isMSWD();
     }
-
-    match /inventory_logs/{doc} {
-      allow read, write: if isMSWD();
-      allow read: if isBarangay();
+    
+    // Inventory collection - Enhanced validation
+    match /inventory/{inventoryId} {
+      allow read: if isValidUser();
+      allow write: if isMSWD() && 
+                      (inventoryId == 'totals' && validateInventoryData(request.resource.data));
     }
-
-    match /inventory_batches/{doc} {
-      allow read, write: if isMSWD();
-      allow read: if isBarangay();
+    
+    // Inventory logs collection - Audit trail protection
+    match /inventory_logs/{logId} {
+      allow read: if isValidUser();
+      allow create: if isMSWD() && 
+                       request.resource.data.keys().hasAll(['type', 'batchId', 'items', 'createdAt']) &&
+                       request.resource.data.type in ['add', 'deduct'] &&
+                       request.resource.data.createdBy == request.auth.uid;
+      allow update: if false; // Logs should be immutable
+      allow delete: if false; // Logs should never be deleted
     }
-
-    match /accountRequests/{doc} {
-      allow create: if true;
-      allow read, update, delete: if isMSWD();
+    
+    // Inventory batches collection - Enhanced batch management
+    match /inventory_batches/{batchId} {
+      allow read: if isValidUser();
+      allow create: if isMSWD() && 
+                       request.resource.data.keys().hasAll(['name', 'periodLabel', 'active', 'startedAt']);
+      allow update: if isMSWD() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'endedAt']);
+      allow delete: if false; // Batches should never be deleted for audit trail
+    }
+    
+    // System configuration
+    match /config/{configId} {
+      allow read: if isValidUser();
+      allow write: if isMSWD();
+    }
+    
+    // Audit logs for security monitoring
+    match /audit_logs/{auditId} {
+      allow read: if isMSWD();
+      allow create: if isValidUser() && 
+                       request.resource.data.userId == request.auth.uid;
+      allow update: if false; // Audit logs are immutable
+      allow delete: if false; // Audit logs should never be deleted
+    }
+    
+    // Session management for enhanced security
+    match /sessions/{sessionId} {
+      allow read, write: if isAuthenticated() && sessionId.split('_')[0] == request.auth.uid;
+    }
+    
+    // Deny all other requests by default
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

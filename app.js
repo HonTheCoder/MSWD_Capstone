@@ -535,8 +535,11 @@ async function handleRequestAccount(event) {
     try {
         // Explicitly call with parameter names matching the function definition
         await requestAccount(barangayName, email, contact, message);
-        
-        // Show success message with Swal if available or fallback
+
+		// Immediately close the Request Account modal before showing success popup
+		hideRequestAccount();
+
+		// Show success message with Swal if available or fallback
         if (window.Swal) {
             await Swal.fire({
                 title: '✅ Request Submitted',
@@ -554,8 +557,7 @@ async function handleRequestAccount(event) {
         } else {
             showSuccess('Account request submitted successfully! We will review your request and get back to you soon.');
         }
-        
-        hideRequestAccount();
+
         form.reset();
         return true;
     } catch (error) {
@@ -2391,6 +2393,10 @@ window.loadResidentsForBarangay = async function(barangayName) {
                     const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
                     
                     if (btns && searchSection) {
+                        // Prevent duplicating buttons on reloads
+                        if (searchSection.dataset.dtMoved === '1') {
+                            return;
+                        }
                         // Remove any existing button container to avoid duplicates
                         const existingBtns = searchSection.querySelector('.dt-buttons');
                         if (existingBtns && existingBtns !== btns) {
@@ -2410,6 +2416,20 @@ window.loadResidentsForBarangay = async function(barangayName) {
                         } else {
                             searchSection.insertBefore(btns, searchSection.firstChild);
                         }
+
+                        // Remove any emoji/icon-labeled duplicate buttons, keep plain text ones
+                        try {
+                            const isEmoji = (text) => /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u.test(text);
+                            btns.querySelectorAll('button').forEach((b) => {
+                                const label = (b.textContent || '').trim();
+                                if (label && isEmoji(label)) {
+                                    b.remove();
+                                }
+                            });
+                        } catch(_) {}
+
+                        // Mark as moved to avoid re-adding on subsequent loads
+                        searchSection.dataset.dtMoved = '1';
                         
                         // Apply consistent styling to match MSWD design
                         btns.style.cssText = `
@@ -3528,6 +3548,8 @@ async function viewBarangay(barangayId, barangayName) {
         // Load residents for the selected barangay
         await loadResidentsForModal(barangayName);
         
+        // Static export buttons will be set up after DataTable initialization
+        
         // Focus on search input
         const searchInput = document.getElementById('residentSearchInput');
         if (searchInput) {
@@ -3541,6 +3563,9 @@ async function viewBarangay(barangayId, barangayName) {
         showError("Failed to load barangay data. Please try again.");
     }
 }
+
+// Expose viewBarangay function globally
+window.viewBarangay = viewBarangay;
 
 // Function to load residents for the modal
 async function loadResidentsForModal(barangayName) {
@@ -3679,186 +3704,17 @@ async function loadResidentsForModal(barangayName) {
                 }
                 const dt = $('#viewResidentsTable').DataTable({
                     order: [[0, 'asc']],
-                    dom: 'Bfrtip',
-buttons: [
-                        { extend: 'excelHtml5', title: 'Residents', exportOptions: { columns: ':not(.no-export)' } },
-                        { extend: 'pdfHtml5', title: 'Residents', pageSize: 'A4',
-                          customize: function (doc) {
-                            // Standardize PDF header/footer
-                            doc.pageMargins = [20, 40, 20, 30];
-                            doc.styles.tableHeader = { bold: true, fillColor: '#f5f5f5' };
-                            doc.content.unshift({ text: 'RELIEF GOODS DELIVERY RECEIPT', style: { bold: true, fontSize: 14 }, alignment: 'center', margin: [0,0,0,6] });
-                            doc.content.unshift({ text: 'Municipal Social Welfare and Development Office', alignment: 'center', fontSize: 10, margin: [0,0,0,12] });
-                          },
-                          exportOptions: { columns: ':not(.no-export)' } },
-                        { extend: 'print', title: 'Residents',
-                          customize: function (win) {
-                            try {
-                              const body = win.document.body;
-                              const content = body.innerHTML;
-                              const wrapper = `
-                                <div class="page">
-                                  <div class="header">
-                                    <div class="title">RELIEF GOODS DELIVERY RECEIPT</div>
-                                    <div class="subtitle">Municipal Social Welfare and Development Office</div>
-                                  </div>
-                                  <div class="content">${content}</div>
-                                  <div class="footer"><div>Generated on ${new Date().toLocaleString()}</div></div>
-                                </div>`;
-                              const style = win.document.createElement('style');
-                              style.innerHTML = `@page { size: A4; margin: 12mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .header{ text-align:center; border-bottom:1px solid #e5e7eb; padding-bottom:8px; } .title{ font-size:16px; font-weight:700;} .subtitle{ font-size:11px; color:#555;} .content{ padding:10px 2px;} .footer{ border-top:1px solid #e5e7eb; padding-top:8px; font-size:10px; color:#666; } table{ width:100%; border-collapse:collapse;} th,td{ border:1px solid #e5e7eb; padding:6px 8px; font-size:12px;} th{ background:#f5f5f5; }`;
-                              body.innerHTML = wrapper;
-                              body.appendChild(style);
-                            } catch(_) {}
-                          },
-                          exportOptions: { columns: ':not(.no-export)' } }
-                    ],
-                    pageLength: 10
+                    dom: 'frtip', // Remove 'B' to hide buttons completely
+                    pageLength: 10,
+                    searching: false // Disable DataTables search since we have our own
                 });
-                // Move DataTables buttons above the search bar with improved handling
-                try {
-                    const wrapper = document.getElementById('viewResidentsTable').closest('.dataTables_wrapper');
-                    const btns = wrapper ? wrapper.querySelector('.dt-buttons') : null;
-                    const filter = wrapper ? wrapper.querySelector('.dataTables_filter') : null;
-                    const searchSection = document.querySelector('#viewResidentsModal .search-section');
-                    const searchBox = searchSection ? searchSection.querySelector('.search-box') : null;
-                    
-                    if (btns && searchSection) {
-                        // Remove any existing button container to avoid duplicates
-                        const existingBtns = searchSection.querySelector('.dt-buttons');
-                        if (existingBtns && existingBtns !== btns) {
-                            existingBtns.remove();
-                        }
-                        
-                        // Move buttons to search section
-                        if (searchBox) {
-                            searchSection.insertBefore(btns, searchBox);
-                        } else {
-                            searchSection.insertBefore(btns, searchSection.firstChild);
-                        }
-                        
-                        // Apply enhanced styling and ensure clickability
-                        btns.style.cssText = `
-                            margin: 0 0 12px 0 !important;
-                            display: flex !important;
-                            gap: 8px !important;
-                            flex-wrap: wrap !important;
-                            z-index: 100000 !important;
-                            position: relative !important;
-                            pointer-events: auto !important;
-                        `;
-                        
-                        // Ensure each button is properly styled and clickable
-                        btns.querySelectorAll('button').forEach((button, index) => {
-                            button.style.cssText = `
-                                display: inline-flex !important;
-                                align-items: center !important;
-                                justify-content: center !important;
-                                width: auto !important;
-                                min-height: 44px !important;
-                                min-width: 44px !important;
-                                padding: 12px 16px !important;
-                                margin: 0 !important;
-                                background: ${index === 0 ? '#217346' : index === 1 ? '#dc2626' : '#7c3aed'} !important;
-                                color: white !important;
-                                border: none !important;
-                                border-radius: 6px !important;
-                                cursor: pointer !important;
-                                font-size: 0.875rem !important;
-                                font-weight: 500 !important;
-                                pointer-events: auto !important;
-                                user-select: none !important;
-                                z-index: 100001 !important;
-                                position: relative !important;
-                                transition: all 0.2s ease !important;
-                                box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-                                touch-action: manipulation !important;
-                                -webkit-tap-highlight-color: transparent !important;
-                                -webkit-touch-callout: none !important;
-                            `;
-                            
-                            // Add explicit event listeners as a fallback
-                            if (!button.hasAttribute('data-enhanced')) {
-                                button.setAttribute('data-enhanced', 'true');
-                                
-                                // Remove any existing event listeners by cloning the button
-                                const originalClick = button.onclick;
-                                const newButton = button.cloneNode(true);
-                                button.parentNode.replaceChild(newButton, button);
-                                button = newButton; // Update reference
-                                
-                                // Add comprehensive event handling for all interaction types
-                                ['click', 'touchstart', 'mousedown'].forEach(eventType => {
-                                    newButton.addEventListener(eventType, function(e) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        e.stopImmediatePropagation();
-                                        
-                                        console.log('DataTables button triggered via:', eventType, this.textContent);
-                                        
-                                        // Try original handler first
-                                    if (originalClick) {
-                                        try {
-                                            originalClick.call(this, e);
-                                            return; // If original handler works, we're done
-                                        } catch (err) {
-                                            console.warn('Original click handler failed:', err);
-                                        }
-                                    }
-                                    
-                                    // Trigger DataTables button action as fallback
-                                    try {
-                                        if (this.classList.contains('buttons-excel')) {
-                                            console.log('Triggering Excel export...');
-                                            dt.button('.buttons-excel').trigger();
-                                        } else if (this.classList.contains('buttons-pdf')) {
-                                            console.log('Triggering PDF export...');
-                                            dt.button('.buttons-pdf').trigger();
-                                        } else if (this.classList.contains('buttons-print')) {
-                                            console.log('Triggering print...');
-                                            dt.button('.buttons-print').trigger();
-                                        } else {
-                                            // Try to find the button by index if class detection fails
-                                            const allButtons = btns.querySelectorAll('button');
-                                            const buttonIndex = Array.from(allButtons).indexOf(this);
-                                            if (buttonIndex >= 0) {
-                                                console.log('Triggering button by index:', buttonIndex);
-                                                dt.button(buttonIndex).trigger();
-                                            }
-                                        }
-                                    } catch (dtErr) {
-                                        console.error('DataTables button trigger failed:', dtErr);
-                                        // Last resort: try to manually trigger export functions
-                                        if (this.textContent.toLowerCase().includes('excel')) {
-                                            alert('Excel export would be triggered here');
-                                        } else if (this.textContent.toLowerCase().includes('pdf')) {
-                                            alert('PDF export would be triggered here');
-                                        } else if (this.textContent.toLowerCase().includes('print')) {
-                                            window.print();
-                                        }
-                                    }
-                                    }, { passive: false, capture: true });
-                                });
-                                
-                                // Add hover effects
-                                button.addEventListener('mouseenter', function() {
-                                    this.style.transform = 'translateY(-1px)';
-                                    this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-                                });
-                                
-                                button.addEventListener('mouseleave', function() {
-                                    this.style.transform = 'translateY(0)';
-                                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                                });
-                            }
-                        });
-                    }
                 
-                    // Hide DataTables' built-in search; we'll keep the custom one above
-                    if (filter) { filter.style.display = 'none'; }
-                } catch(err) {
-                    console.warn('Error enhancing DataTables buttons:', err);
-                }
+                // Setup manual export functionality since we removed DataTables buttons
+                window.residentTableData = dt;
+                // Set up our custom export buttons
+                setTimeout(() => {
+                    setupStaticExportButtons();
+                }, 100);
             }
         } catch (e) { console.warn('DataTable init (modal) failed:', e); }
         
@@ -4042,10 +3898,23 @@ async function approveRequest(requestId, barangayName, terrain, password) {
             throw new Error(`Account already exists for ${email}. Please use a different barangay name.`);
         }
         
-        // Create new user account in Firebase Auth (this will temporarily log in the new user)
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const newUserId = userCredential.user.uid;
-        console.log('✅ Firebase Auth user created:', newUserId);
+        // Create new user account using a SECONDARY Auth instance so admin session stays active
+        let newUserId = null;
+        try {
+            const { initializeApp, deleteApp } = await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js');
+            const { getAuth, createUserWithEmailAndPassword: createOnSecondary, signOut: signOutSecondary } = await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js');
+            const secondaryApp = initializeApp(auth.app.options, 'secondary-admin-create');
+            const secondaryAuth = getAuth(secondaryApp);
+            const cred = await createOnSecondary(secondaryAuth, email, password);
+            newUserId = cred.user.uid;
+            console.log('✅ Firebase Auth user created (secondary):', newUserId);
+            // Clean up secondary session to avoid side effects
+            try { await signOutSecondary(secondaryAuth); } catch(_) {}
+            try { await deleteApp(secondaryApp); } catch(_) {}
+        } catch (secErr) {
+            console.error('❌ Secondary auth user creation failed:', secErr);
+            throw secErr;
+        }
         
         // Create user document in Firestore first (while we still have the auth context)
         const userDocRef = await addDoc(collection(db, 'users'), {
@@ -4079,10 +3948,6 @@ async function approveRequest(requestId, barangayName, terrain, password) {
         });
         
         console.log('✅ Request status updated');
-        
-        // Sign out the newly created user immediately
-        await auth.signOut();
-        console.log('🔐 Signed out new user');
         
         // Close modal immediately
         closeApproveModal();
@@ -4127,9 +3992,17 @@ async function approveRequest(requestId, barangayName, terrain, password) {
             alert(`Account approved for ${barangayName}!\n\nLogin Details:\nEmail: ${email}\nPassword: ${password}\nTerrain: ${terrain}`);
         }
         
-        // Force page refresh to restore admin session
-        console.log('🔄 Refreshing page to restore admin session...');
-        window.location.reload();
+        // Auto-refresh data (no logout, no full page reload needed)
+        try {
+            if (typeof loadPendingRequests === 'function') {
+                await loadPendingRequests();
+            } else {
+                // Fallback: soft reload if function not available
+                window.location.reload();
+            }
+        } catch (_) {
+            try { window.location.reload(); } catch(_) {}
+        }
         
     } catch (error) {
         console.error('❌ Error approving request:', error);
@@ -4746,6 +4619,9 @@ async function showDeliveryHistory() {
                                     font-weight: 500 !important;
                                 `;
                             });
+
+                        // Mark as moved to avoid future duplication
+                        searchSection.dataset.dtMoved = '1';
                         }
                         if (filter) {
                             filter.style.cssText = `
@@ -4803,6 +4679,211 @@ function safeToDate(dateInput) {
         console.warn('Failed to convert date:', dateInput, error);
         return new Date();
     }
+}
+
+// Setup static export buttons in residents modal
+function setupStaticExportButtons() {
+    console.log('Setting up static export buttons...');
+    
+    // Helper function to get table data for export
+    function getTableDataForExport() {
+        const rows = [];
+        const table = document.getElementById('viewResidentsTable');
+        if (!table) return rows;
+        
+        // Get headers
+        const headers = [];
+        table.querySelectorAll('thead th').forEach(th => {
+            headers.push(th.textContent.trim());
+        });
+        rows.push(headers);
+        
+        // Get visible rows (respecting search filter)
+        table.querySelectorAll('tbody tr').forEach(tr => {
+            if (tr.style.display !== 'none') {
+                const row = [];
+                tr.querySelectorAll('td').forEach(td => {
+                    row.push(td.textContent.trim());
+                });
+                rows.push(row);
+            }
+        });
+        
+        return rows;
+    }
+    
+    // Helper function to export to Excel (CSV format)
+    function exportToExcel() {
+        try {
+            const data = getTableDataForExport();
+            if (data.length === 0) {
+                showError('No data to export');
+                return;
+            }
+            
+            const csvContent = data.map(row => 
+                row.map(cell => `"${cell.toString().replace(/"/g, '""')}"`).join(',')
+            ).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'residents_export.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        } catch (error) {
+            console.error('Excel export error:', error);
+            showError('Failed to export to Excel');
+        }
+    }
+    
+    // Helper function to export to PDF
+    function exportToPDF() {
+        try {
+            const printableContent = document.getElementById('viewResidentsTable').outerHTML;
+            const title = document.getElementById('viewResidentsTitle')?.textContent || 'Residents';
+            
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                showError('Popup blocked. Please allow popups for PDF export.');
+                return;
+            }
+            
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { text-align: center; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+                        th { background-color: #f2f2f2; font-weight: bold; }
+                        @media print {
+                            @page { margin: 10mm; size: A4 landscape; }
+                            body { margin: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    <div style="margin-bottom: 10px;">Generated on: ${new Date().toLocaleString()}</div>
+                    ${printableContent}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        } catch (error) {
+            console.error('PDF export error:', error);
+            showError('Failed to export to PDF');
+        }
+    }
+    
+    // Helper function to print
+    function printTable() {
+        try {
+            const printableContent = document.getElementById('viewResidentsTable').outerHTML;
+            const title = document.getElementById('viewResidentsTitle')?.textContent || 'Residents';
+            
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                showError('Popup blocked. Please allow popups for printing.');
+                return;
+            }
+            
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Print - ${title}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { text-align: center; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; font-size: 11px; }
+                        th { background-color: #f2f2f2; font-weight: bold; }
+                        @media print {
+                            @page { margin: 10mm; size: A4 landscape; }
+                            body { margin: 0; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>RELIEF GOODS DELIVERY RECEIPT</h1>
+                    <div style="text-align: center; margin-bottom: 15px;">Municipal Social Welfare and Development Office</div>
+                    <div style="margin-bottom: 10px; text-align: center;">${title}</div>
+                    <div style="margin-bottom: 15px;">Generated on: ${new Date().toLocaleString()}</div>
+                    ${printableContent}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        } catch (error) {
+            console.error('Print error:', error);
+            showError('Failed to print table');
+        }
+    }
+    
+    // Excel Export Button
+    const excelBtn = document.getElementById('exportResidentsExcelBtn');
+    if (excelBtn) {
+        // Remove existing listeners
+        const newExcelBtn = excelBtn.cloneNode(true);
+        excelBtn.parentNode.replaceChild(newExcelBtn, excelBtn);
+        
+        newExcelBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Excel export button clicked');
+            exportToExcel();
+        });
+    }
+    
+    // PDF Export Button
+    const pdfBtn = document.getElementById('exportResidentsPDFBtn');
+    if (pdfBtn) {
+        // Remove existing listeners
+        const newPdfBtn = pdfBtn.cloneNode(true);
+        pdfBtn.parentNode.replaceChild(newPdfBtn, pdfBtn);
+        
+        newPdfBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('PDF export button clicked');
+            exportToPDF();
+        });
+    }
+    
+    // Print Button
+    const printBtn = document.getElementById('printResidentsBtn');
+    if (printBtn) {
+        // Remove existing listeners
+        const newPrintBtn = printBtn.cloneNode(true);
+        printBtn.parentNode.replaceChild(newPrintBtn, printBtn);
+        
+        newPrintBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Print button clicked');
+            printTable();
+        });
+    }
+    
+    console.log('Static export buttons setup complete');
 }
 
 // Toggle barangay delivery details expansion (similar to admin)
