@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#1a73e8">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>Relief Allocation App</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="16x16" href="image/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="image/favicon-32x32.png">
+    <link rel="icon" type="image/x-icon" href="image/favicon.ico">
+
+    <!-- For Apple devices -->
+    <link rel="apple-touch-icon" href="image/apple-touch-icon.png">
+
+    <!-- For Android/Chrome -->
+    <link rel="icon" type="image/png" sizes="192x192" href="image/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="image/android-chrome-512x512.png">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <div class="logo-icon">
+                    <span class="material-icons">volunteer_activism</span>
+                </div>
+                <h1 class="loading-title">Relief Allocation System</h1>
+                <p class="loading-subtitle">Loading...</p>
+            </div>
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <p class="loading-text">Initializing system...</p>
+        </div>
+        <div class="loading-pattern"></div>
+    </div>
+
+    <!-- Skip Link for Accessibility -->
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <!-- Enhanced Success and Error Message Modal -->
+    <div id="messageModal" class="message-modal hidden">
+        <div class="message-modal-overlay" onclick="closeMessageModal()"></div>
+        <div class="message-modal-content">
+            <div class="message-modal-header">
+                <h3 id="messageTitle">Message</h3>
+                <button class="message-modal-close" onclick="closeMessageModal()" aria-label="Close message">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="message-modal-body">
+                <div id="messageIcon" class="message-icon"></div>
+                <div id="messageText" class="message-text">Message content</div>
+            </div>
+            <div class="message-modal-footer">
+                <button id="messageOkBtn" class="message-ok-btn" onclick="closeMessageModal()">
+                    <span class="material-icons">check</span>
+                    <span>OK</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legacy messages removed - using enhanced modal system -->
+
+    <!-- Login Form -->
+    <div class="login-container" id="loginContainer">
+        <!-- Back Button -->
+        <button type="button"
+        onclick="window.location.href='index.html'"
+        aria-label="Go back"
+        class="back-button"
+        onmouseenter="this.style.background='#e5e7eb'; this.style.transform='scale(1.06)'; this.style.boxShadow='0 6px 16px rgba(0,0,0,0.15)';"
+        onmouseleave="this.style.background='rgba(17,24,39,0.08)'; this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)';">
+            <span class="material-icons">arrow_back</span>
+        </button>
+        
+        <div class="login-box">
+            <h1>ReliefPoint</h1>
+            <form id="loginForm">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" autocomplete="username" required>
+                </div>
+                <div class="input-group password-group">
+                    <label for="password">Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" name="password" autocomplete="current-password" required>
+                        <span class="material-icons" id="togglePassword">visibility_off</span>
+                    </div>
+                </div>
+                <button type="submit">Login</button>
+                <button type="button" id="requestAccountBtn" class="secondary-button" onclick="showRequestAccount()">Request Account</button>
+            </form>          
+        </div>
+    </div>
+
+    <!-- Request Account Modal -->
+    <div id="requestAccountModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Request Account</h2>
+            </div>
+            <form id="requestAccountForm">
+                <div class="input-group">
+                    <label for="requestUsername">Barangay Name</label>
+                    <input type="text" id="requestUsername" name="requestUsername" required>
+                </div>
+                <div class="input-group">
+                    <label for="requestEmail">Email</label>
+                    <input type="email" id="requestEmail" name="requestEmail" required>
+                </div>
+                <div class="input-group">
+                    <label for="requestContact">Contact</label>
+                    <input type="text" id="requestContact" name="requestContact" required>
+                </div>
+                <div class="input-group">
+                    <label for="requestMessage">Message</label>
+                    <textarea id="requestMessage" name="requestMessage" required></textarea>
+                </div>
+                <div class="button-group">
+                    <button type="submit">Submit Request</button>
+                    <button id="cancelRequestBtn" type="button" class="secondary-button" onclick="hideRequestAccount()">Cancel</button>
+                </div>
+            </form>            
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard-container hidden" id="dashboardContainer">
+        <!-- Mobile sidebar overlay -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+        <nav class="sidebar" role="navigation" aria-label="Dashboard navigation">
+            <div class="sidebar-header">
+                <h2 id="userRole">Welcome</h2>
+                <!-- Mobile close button -->
+                <button class="close-sidebar material-icons" onclick="closeMobileSidebar()" aria-label="Close sidebar">
+                    close
+                </button>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="mswd-only"><a href="#" onclick="showSection('barangayManagement')">Manage Barangays</a></li>
+                <li class="mswd-only"><a href="#" onclick="showSection('accountRequests')">Account Requests</a></li>
+                <li class="mswd-only"><a href="#" onclick="showSection('deliveryScheduling')">Delivery Scheduling</a></li>
+                <li class="mswd-only"><a href="#" onclick="showSection('trackGoods')">Track Relief Goods</a></li>
+                <li class="barangay-only"><a href="#" onclick="showSection('residentManagement')">Manage Residents</a></li>
+                <li class="barangay-only"><a href="#" onclick="showSection('deliveryStatus')">Delivery Status</a></li>
+                <li><a href="javascript:void(0)" onclick="showSection('statistics')">Priority Statistics</a></li>
+                <li><a href="#" onclick="showChangePassword()">Change Password</a></li>
+                <li><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+            
+            <!-- Session Status Indicator - Moved to bottom of sidebar -->
+            <div id="sessionStatus" class="session-status" style="display: none;">
+                <div class="session-indicator">
+                    <span class="session-dot active" id="sessionDot"></span>
+                    <span class="session-text" id="sessionText">Active Session</span>
+                </div>
+                <div class="session-info" id="sessionInfo">
+                    <small>Login: <span id="sessionTime">--</span></small>
+                </div>
+            </div>
+        </nav>
+
+        <main class="main-content" id="main" role="main">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">
+                    <div class="hamburger-icon">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </button>
+                <h1 class="mobile-title">Dashboard</h1>
+            </div>
+
+            <!-- MSWD: Track Relief Goods Section -->
+            <div id="trackGoods" class="section hidden">
+                <div class="section-header">
+                    <h2>Track Relief Goods</h2>
+                    <div class="section-actions">
+                        <button id="historyBtn" class="action-button">
+                            <span class="material-icons">history</span>
+                            <span class="btn-text">History</span>
+                        </button>
+                        <button id="newBatchBtn" class="action-button primary-btn">
+                            <span class="material-icons">refresh</span>
+                            <span class="btn-text">New Relief Operation</span>
+                        </button>
+                        <button id="summaryBtn" class="action-button">
+                            <span class="material-icons">summarize</span>
+                            <span class="btn-text">Print</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Update Inventory</h3>
+                        <p>Add received goods to inventory. Totals update automatically.</p>
+                    </div>
+                    <form id="goodsForm" class="enhanced-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Rice (sacks)</label>
+                                <input type="number" id="invRice" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Biscuits (boxes)</label>
+                                <input type="number" id="invBiscuits" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Canned Goods (boxes)</label>
+                                <input type="number" id="invCanned" min="0" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Shirts (packs)</label>
+                                <input type="number" id="invShirts" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">add</span>
+                                <span>Add to Inventory</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Current Totals</h3>
+                    </div>
+                    <div class="table-container mobile-table">
+                        <table id="goodsTotalsTable">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Rice (sacks)</td><td id="totalRice">0</td></tr>
+                                <tr><td>Biscuits (boxes)</td><td id="totalBiscuits">0</td></tr>
+                                <tr><td>Canned Goods (boxes)</td><td id="totalCanned">0</td></tr>
+                                <tr><td>Shirts (packs)</td><td id="totalShirts">0</td></tr>
+                                <tr><td><strong>Overall Total</strong></td><td id="totalOverall">0</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Enhanced Inventory History Modal -->
+                <div id="historyModal" class="modal hidden">
+                    <div class="modal-content inventory-history-modal">
+                        <div class="modal-header">
+                            <h2><span class="material-icons">history</span>Inventory History</h2>
+                            <span class="close" onclick="closeHistoryModal()">&times;</span>
+                        </div>
+                        
+                        <!-- Enhanced Filter Controls -->
+                        <div class="filter-controls-container">
+                            <div class="filter-row">
+                                <div class="filter-group">
+                                    <label for="fromDate">From Date:</label>
+                                    <input type="date" id="fromDate" class="filter-input">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="toDate">To Date:</label>
+                                    <input type="date" id="toDate" class="filter-input">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="typeFilter">Type:</label>
+                                    <select id="typeFilter" class="filter-input">
+                                        <option value="">All Types</option>
+                                        <option value="Stock In">Stock In</option>
+                                        <option value="Delivery">Delivery</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="filter-actions">
+                                <button id="applyHistoryFilter" class="filter-btn apply-btn">
+                                    <span class="material-icons">filter_list</span>
+                                    Apply Filter
+                                </button>
+                                <button id="clearHistoryFilter" class="filter-btn clear-btn">
+                                    <span class="material-icons"></span>
+                                    Clear Filter
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Enhanced Table Container -->
+                        <div class="table-container-enhanced">
+                            <div class="table-wrapper">
+                                <table id="inventoryHistoryTable" class="enhanced-table">
+                                    <thead>
+                                        <tr>
+                                            <th><span class="material-icons">schedule</span>Date & Time</th>
+                                            <th><span class="material-icons">category</span>Type</th>
+                                            <th><span class="material-icons">inventory</span>Item</th>
+                                            <th><span class="material-icons">numbers</span>Qty</th>
+                                            <th><span class="material-icons">person</span>User</th>
+                                            <th><span class="material-icons">receipt</span>Transaction ID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventoryHistoryBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="accountRequests" class="section hidden">
+                <div class="section-header">
+                    <h2>Account Requests</h2>
+                </div>
+                <div class="card">
+                    <h3>Pending Requests</h3>
+                    <div class="table-container mobile-table">
+                        <table id="requestsTable">
+                            <thead>
+                                <tr>
+                                    <th>Barangay Name</th>
+                                    <th>Email</th>
+                                    <th>Contact</th>
+                                    <th>Message</th>
+                                    <th>Date Requested</th>
+                                    <th class="no-export">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="requestsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Approval Modal with Terrain Selection -->
+            <div id="approveAccountModal" class="modal hidden">
+                <div class="modal-content add-resident-modal">
+                    <div class="modal-header">
+                        <h2>Approve Barangay Account</h2>
+                        <span class="close" onclick="closeApproveModal()">&times;</span>
+                    </div>
+                    <form id="approveAccountForm">
+                        <input type="hidden" id="approveRequestId">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Barangay Name:</label>
+                                <input type="text" id="approveBarangayName" readonly style="background: #f9fafb;">
+                            </div>
+                            <div class="form-group">
+                                <label>Email:</label>
+                                <input type="email" id="approveEmail" readonly style="background: #f9fafb;">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contact:</label>
+                                <input type="text" id="approveContact" readonly style="background: #f9fafb;">
+                            </div>
+                            <div class="form-group field-terrain">
+                                <label for="approveTerrain">
+                                    <span class="material-icons">terrain</span>
+                                    Select Barangay Terrain:
+                                </label>
+                                <select id="approveTerrain" required>
+                                    <option value="" disabled selected>Select terrain type</option>
+                                    <option value="Lowland">Lowland</option>
+                                    <option value="Highland">Highland</option>
+                                </select>
+                                <small class="terrain-note">This will be used for all residents in this barangay</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="approvePassword">Set Default Password:</label>
+                                <input type="password" id="approvePassword" required placeholder="Enter default password for this barangay">
+                                <small class="terrain-note">The barangay can change this later</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">check_circle</span>
+                                <span>Approve Account</span>
+                            </button>
+                            <button type="button" onclick="closeApproveModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="barangayManagement" class="section hidden">
+                <div class="section-header">
+                    <h2>Registered Barangays</h2>
+                </div>
+                <div class="card">
+                    <div class="table-container mobile-table">
+                        <table id="barangayTable">
+                            <thead>
+                                <tr>
+                                    <th>Barangay</th><th>Total Residents</th><th>Action</th></tr>
+                            </thead>
+                            <tbody id="barangayTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="residentManagement" class="section hidden">
+                <div class="section-header">
+                    <h2>Resident Management</h2>
+                    <div class="section-actions">
+                        <button onclick="showAddResidentModal()" class="action-button primary-btn">
+                            <span class="material-icons">add</span>
+                            <span class="btn-text">Add Resident</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <!-- Search and Export Section matching MSWD design -->
+                    <div class="search-filter-section" id="barangayResidentSearchSection">
+                        <!-- Export buttons will be moved here by JavaScript -->
+                        <div class="search-section">
+                            <div class="search-box">
+                                <input 
+                                    type="text" 
+                                    id="barangayResidentSearchInput" 
+                                    placeholder="Search residents by name, age, address, or any details..."
+                                >
+                            </div>
+                            <div class="search-info">
+                                <span class="material-icons">info</span>
+                                <span class="info-text">Type to search through all resident information</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container mobile-table">
+                        <table id="residentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Age</th>
+                                    <th>Address Zone</th>
+                                    <th>Household No</th>
+                                    <th>Gender</th>
+                                    <th>Household Status</th>
+                                    <th>House Material</th>
+                                    <th>Terrain</th>
+                                    <th>Family Members</th>
+                                    <th>Monthly Income</th>
+                                    <th>Aid History</th>
+                                    <th>Remarks</th>
+                                    <th>Evacuee History</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="residentsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced Modal for Adding Resident -->
+            <div id="addResidentModal" class="modal hidden">
+                <div class="modal-content add-resident-modal enhanced-resident-modal">
+                    <div class="modal-header">
+                        <h2>Add New Resident</h2>
+                        <button type="button" class="close-btn" onclick="closeAddResidentModal()">
+                            <span class="material-icons">close</span>
+                        </button>
+                    </div>
+                    <form id="addResidentForm" class="enhanced-form">
+                        <!-- Personal Information Section -->
+                        <div class="form-section">
+                            <h3 class="section-title">Personal Information</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="name">Full Name</label>
+                                    <input type="text" id="name" placeholder="Enter full name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="age">Age</label>
+                                    <input type="number" id="age" placeholder="Enter age" min="0" max="120" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="gender">Gender</label>
+                                    <select id="gender" required>
+                                        <option value="" disabled selected>Select gender</option>
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="familyMembers">Family Members</label>
+                                    <input type="number" id="familyMembers" placeholder="Total family members" min="1" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Address Information Section -->
+                        <div class="form-section">
+                            <h3 class="section-title">Address Information</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="addressZone">Address Zone</label>
+                                    <input type="text" id="addressZone" placeholder="e.g., Zone 1, Purok 2" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="householdNumber">Household Number</label>
+                                    <input type="text" id="householdNumber" placeholder="e.g., HH-001" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Housing Information Section -->
+                        <div class="form-section">
+                            <h3 class="section-title">Housing Information</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="houseMaterial">House Material</label>
+                                    <select id="houseMaterial" required>
+                                        <option value="" disabled selected>Select house material</option>
+                                        <option value="Concrete">Concrete</option>
+                                        <option value="Nipa">Nipa</option>
+                                        <option value="Mixed">Mixed</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="householdStatus">Household Status</label>
+                                    <select id="householdStatus" required>
+                                        <option value="" disabled selected>Select economic status</option>
+                                        <option value="Poor">Poor</option>
+                                        <option value="Mid">Middle Class</option>
+                                        <option value="High">Well-off</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group terrain-group">
+                                    <label>Barangay Terrain</label>
+                                    <div class="terrain-display" id="barangayTerrainDisplay">
+                                        <span class="terrain-value">Not set</span>
+                                    </div>
+                                    <small class="terrain-note">Terrain was set by admin when your account was approved</small>
+                                    <input type="hidden" id="barangayTerrain" name="barangayTerrain">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Employment Status Section -->
+                        <div class="form-section">
+                            <h3 class="section-title">Employment Status</h3>
+                            <div class="form-row">
+                                <div class="form-group checkbox-group">
+                                    <div class="checkbox-container">
+                                        <input type="checkbox" id="student" class="enhanced-checkbox">
+                                        <label for="student" class="checkbox-label">Student</label>
+                                    </div>
+                                </div>
+                                <div class="form-group checkbox-group">
+                                    <div class="checkbox-container">
+                                        <input type="checkbox" id="working" class="enhanced-checkbox">
+                                        <label for="working" class="checkbox-label">Working</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="monthlyIncome">Monthly Income</label>
+                                    <input type="number" id="monthlyIncome" placeholder="Enter monthly income (PHP)" min="0" disabled>
+                                    <small class="income-note">Only available when 'Working' is selected</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Relief History Section -->
+                        <div class="form-section">
+                            <h3 class="section-title">Relief History</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="aidHistory">Relief Distribution History</label>
+                                    <input type="text" id="aidHistory" placeholder="Number of times received relief goods" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="evacueeHistory">Evacuee History</label>
+                                    <input type="number" id="evacueeHistory" placeholder="Times evacuated this year" min="0" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Remarks Section (Moved to bottom) -->
+                        <div class="form-section">
+                            <h3 class="section-title">Additional Notes</h3>
+                            <div class="form-row">
+                                <div class="form-group full-width">
+                                    <label for="remarks">Remarks</label>
+                                    <textarea id="remarks" placeholder="Additional notes or special circumstances about this resident" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">person_add</span>
+                                <span>Add Resident</span>
+                            </button>
+                            <button type="button" onclick="closeAddResidentModal()" class="cancel-btn">
+                                <span class="material-icons">close</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal for Editing Resident -->
+            <div id="editResidentModal" class="modal hidden">
+                <div class="modal-content add-resident-modal">
+                    <div class="modal-header">
+                        <h2>Edit Resident</h2>
+                        <span class="close" onclick="closeEditResidentModal()">&times;</span>
+                    </div>
+                    <form id="editResidentForm">
+                        <input type="hidden" id="editResidentId">
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editName">Name:</label>
+                                <input type="text" id="editName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editAge">Age:</label>
+                                <input type="number" id="editAge" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAddressZone">Address Zone:</label>
+                                <input type="text" id="editAddressZone" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editHouseholdNumber">Household Number:</label>
+                                <input type="text" id="editHouseholdNumber" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editGender">Gender:</label>
+                                <select id="editGender" required>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="editHouseholdStatus">Household Status:</label>
+                                <select id="editHouseholdStatus" required>
+                                    <option value="Poor">Poor</option>
+                                    <option value="Mid">Mid</option>
+                                    <option value="High">High</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editHouseMaterial">House Material:</label>
+                                <select id="editHouseMaterial" required>
+                                    <option value="Concrete">Concrete</option>
+                                    <option value="Nipa">Nipa</option>
+                                    <option value="Mixed">Mixed</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group field-terrain">
+                                <label>
+                                    <span class="material-icons">terrain</span>
+                                    Barangay Terrain:
+                                </label>
+                                <div class="terrain-display" id="editBarangayTerrainDisplay">
+                                    <span class="terrain-badge" id="editBarangayTerrainBadge">Loading...</span>
+                                </div>
+                                <small class="terrain-note">Terrain was set by admin when your account was approved</small>
+                                <input type="hidden" id="editBarangayTerrain" name="editBarangayTerrain">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group checkbox-group">
+                                <label for="editStudent">Student:</label>
+                                <input type="checkbox" id="editStudent">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label for="editWorking">Working:</label>
+                                <input type="checkbox" id="editWorking">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editMonthlyIncome">Monthly Income:</label>
+                                <input type="number" id="editMonthlyIncome">
+                            </div>
+                            <div class="form-group">
+                                <label for="editFamilyMembers">Family Members:</label>
+                                <input type="number" id="editFamilyMembers" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAidHistory">Relief Distribution History:</label>
+                                <input type="text" id="editAidHistory" required placeholder="Times received">
+                            </div>
+                            <div class="form-group">
+                                <label for="editEvacueeHistory">Evacuee History:</label>
+                                <input type="number" id="editEvacueeHistory" required placeholder="Times evacuated this year">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex:1;">
+                                <label for="editRemarks">Remarks:</label>
+                                <textarea id="editRemarks" placeholder="Notes about this person"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">update</span>
+                                <span>Update</span>
+                            </button>
+                            <button type="button" onclick="closeEditResidentModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="statistics" class="section hidden">
+                <!-- MSWD Statistics -->
+                <div id="mswdStatisticsContainer" class="hidden">
+                    <div class="section-header">
+                        <h2>Barangay Priority Statistics</h2>
+                        <div class="section-actions">
+                            <button id="exportBarangayExcelBtn" class="export-btn">
+                                <span class="material-icons">download</span>
+                                <span class="btn-text">Export Excel</span>
+                            </button>
+                            <button id="exportBarangayPDFBtn" class="export-btn">
+                                <span class="material-icons">picture_as_pdf</span>
+                                <span class="btn-text">Export PDF</span>
+                            </button>
+                            <button id="printBarangayStatsBtn" class="export-btn">
+                                <span class="material-icons">print</span>
+                                <span class="btn-text">Print</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container mobile-chart">
+                        <div class="chart-wrapper">
+                            <canvas id="barangayPriorityChart"></canvas>
+                        </div>
+                        <div class="chart-legend" id="barangayLegend"></div>
+                    </div>
+                    <div id="topBarangaysList" class="priority-list"></div>
+                </div>
+                
+                <!-- Barangay Statistics -->
+                <div id="barangayStatisticsContainer" class="hidden">
+                    <div class="section-header">
+                        <h2>Resident Priority Statistics</h2>
+                        <div class="section-actions">
+                            <button id="exportResidentExcelBtn" class="export-btn">
+                                <span class="material-icons">download</span>
+                                <span class="btn-text">Export Excel</span>
+                            </button>
+                            <button id="exportResidentPDFBtn" class="export-btn">
+                                <span class="material-icons">picture_as_pdf</span>
+                                <span class="btn-text">Export PDF</span>
+                            </button>
+                            <button id="printResidentStatsBtn" class="export-btn">
+                                <span class="material-icons">print</span>
+                                <span class="btn-text">Print</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-container mobile-chart">
+                        <div class="chart-wrapper">
+                            <canvas id="residentPriorityChart"></canvas>
+                        </div>
+                        <div class="chart-legend" id="residentLegend"></div>
+                    </div>
+                    <div class="priority-lists">
+                        <div id="topResidentsList" class="priority-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="deliveryScheduling" class="section hidden">
+                <div class="section-header">
+                    <h2>Delivery Scheduling</h2>
+                </div>
+                <!-- Enhanced Delivery Form Card -->
+                <div class="card delivery-form-card">
+                    <div class="card-header">
+                        <h3>Schedule New Delivery</h3>
+                        <p>Create a new delivery schedule for barangay relief distribution</p>
+                    </div>
+                    
+                    <form id="deliveryForm" class="enhanced-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="barangaySelect">Select Barangay</label>
+                                <div class="select-wrapper">
+                                    <select id="barangaySelect" required>
+                                        <option value="" disabled selected>Choose a barangay...</option>
+                                    </select>
+                                    <span class="select-arrow">▼</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="deliveryDate">Delivery Date</label>
+                                <div class="date-wrapper">
+                                    <input type="date" id="deliveryDate" required>
+                                    <span class="date-icon" style="display:none"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Enhanced Items Section -->
+                        <div class="form-section">
+                            <div class="section-header-with-inventory">
+                                <h4>Items & Quantities</h4>
+                                <div class="inventory-summary" id="inventorySummary" style="font-size: 0.85em; color: #666; margin-top: 4px; display: none;">
+                                    <span>Current Inventory: </span>
+                                    <span id="currentInventoryDisplay">Loading...</span>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Rice (sacks) <span class="inventory-hint" id="riceInventory"></span></label>
+                                    <input type="number" id="goodsRice" min="0" value="0" class="inventory-input" data-item="rice">
+                                </div>
+                                <div class="form-group">
+                                    <label>Biscuits (boxes) <span class="inventory-hint" id="biscuitsInventory"></span></label>
+                                    <input type="number" id="goodsBiscuits" min="0" value="0" class="inventory-input" data-item="biscuits">
+                                </div>
+                                <div class="form-group">
+                                    <label>Canned Goods (boxes) <span class="inventory-hint" id="cannedInventory"></span></label>
+                                    <input type="number" id="goodsCanned" min="0" value="0" class="inventory-input" data-item="canned">
+                                </div>
+                                <div class="form-group">
+                                    <label>Shirts (packs) <span class="inventory-hint" id="shirtsInventory"></span></label>
+                                    <input type="number" id="goodsShirts" min="0" value="0" class="inventory-input" data-item="shirts">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="deliveryDetails">Delivery Details</label>
+                            <textarea 
+                                id="deliveryDetails" 
+                                rows="4" 
+                                required 
+                                placeholder="Message for the receiver..."
+                            ></textarea>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="btn-icon" style="display:none"></span>
+                                <span>Schedule Delivery</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Enhanced Deliveries Overview Card -->
+                <div class="card deliveries-overview-card">
+                    <div class="card-header">
+                        <h3>Scheduled Deliveries Overview</h3>
+                        <p>Manage and track all scheduled deliveries</p>
+                    </div>
+                    
+                    <!-- Search and Filter Section -->
+                    <div class="search-filter-section">
+                        <div class="search-box">
+                            <input 
+                                type="text" 
+                                id="deliverySearchInput" 
+                                placeholder="Search by barangay name, date, or details..."
+                            >
+                        </div>
+                        
+                        <div class="filter-controls">
+                            <div class="filter-group">
+                                <label for="statusFilter">Status:</label>
+                                <select id="statusFilter">
+                                    <option value="">All Status</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Received">Received</option>
+                                </select>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label for="dateFilter">Date Range:</label>
+                                <select id="dateFilter">
+                                    <option value="">All Dates</option>
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                            
+                            <button id="clearFilters" class="clear-filters-btn">
+                                <span class="btn-icon"></span>
+                                Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container enhanced-table mobile-table">
+                        <table id="adminDeliveriesTable" class="no-scroll-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-barangay">
+                                        BARANGAY
+                                    </th>
+                                    <th class="col-date">
+                                        DATE & TIME
+                                    </th>
+                                    <th class="col-items">
+                                        ITEMS & QUANTITY
+                                    </th>
+                                    <th class="col-details">
+                                        DETAILS
+                                    </th>
+                                    <th class="col-status">
+                                        STATUS
+                                    </th>
+                                    <th class="col-actions">
+                                        ACTIONS
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminDeliveriesTableBody"></tbody>
+                        </table>
+                        
+                        <!-- Empty State -->
+                        <div id="noDeliveriesMessage" class="empty-state hidden">
+                            <div class="empty-icon">inventory</div>
+                            <h4>No Deliveries Found</h4>
+                            <p>No deliveries match your current search criteria.</p>
+                            <button onclick="clearDeliveryFilters()" class="clear-filters-btn">
+                                <span class="btn-icon"></span>
+                                Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="deliveryStatus" class="section hidden">
+                <div class="section-header">
+                    <h2>Delivery Status</h2>
+                    <div class="section-actions">
+                        <button id="viewDeliveryHistoryBtn" class="action-button">
+                            <span class="material-icons">history</span>
+                            <span class="btn-text">Delivery History</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Scheduled Deliveries</h3>
+                    <div class="table-container mobile-table">
+                        <table id="barangayDeliveriesTable">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <span class="th-icon">schedule</span>
+                                        Date & Time
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">inventory</span>
+                                        Items & Quantity
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">description</span>
+                                        Details
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">analytics</span>
+                                        Status
+                                    </th>
+                                    <th>
+                                        <span class="th-icon">settings</span>
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="deliveriesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Enhanced Delivery History Modal -->
+                <div id="deliveryHistoryModal" class="modal hidden">
+                    <div class="modal-content delivery-history-modal">
+                        <div class="modal-header enhanced-history-header">
+                            <h2><span class="material-icons">history</span>Delivery History</h2>
+                            <button type="button" class="close-btn" onclick="closeDeliveryHistoryModal()">
+                                <span class="material-icons">close</span>
+                            </button>
+                        </div>
+                        <!-- Enhanced Search and Export Section for History -->
+                        <div class="search-filter-section enhanced-history-search" id="historySearchSection">
+                            <!-- Simple Date Filter Section -->
+                            <div class="simple-filter-section">
+                                <div class="date-filter-row">
+                                    <div class="filter-group">
+                                        <label for="historyFromDate">From Date:</label>
+                                        <input type="date" id="historyFromDate" class="filter-input">
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="historyToDate">To Date:</label>
+                                        <input type="date" id="historyToDate" class="filter-input">
+                                    </div>
+                                </div>
+                                <div class="filter-actions">
+                                    <button type="button" class="filter-btn apply-btn" onclick="applySimpleDateFilter()">
+                                        <span class="material-icons">filter_list</span>
+                                        Apply Filter
+                                    </button>
+                                    <button type="button" class="filter-btn clear-btn" onclick="clearSimpleDateFilter()">
+                                        <span class="material-icons">clear</span>
+                                        Clear Filter
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container mobile-table">
+                            <table id="deliveryHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Items & Quantity</th>
+                                        <th>Status</th>
+                                        <th>Details & Notes</th>
+                                        <th>Received At</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="deliveryHistoryTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced View Residents Modal -->
+            <div id="viewResidentsModal" class="modal hidden">
+                <div class="modal-content residents-modal-content">
+                    <div class="modal-header">
+                        <h2 id="viewResidentsTitle">Residents</h2>
+                        <div class="modal-actions">
+                            <span class="close" onclick="closeViewResidentsModal()">&times;</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-body">
+                        <div class="search-section">
+                            <div class="search-box">
+                                <input 
+                                    type="text" 
+                                    id="residentSearchInput" 
+                                    placeholder="Search residents by name, age, address, or any details..."
+                                >
+                            </div>
+                            <div class="search-info">
+                                <span class="material-icons">info</span>
+                                <span>Type to search through all resident information</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Export buttons positioned below search -->
+                        <div class="search-controls">
+                            <div class="export-buttons-container">
+                                <button id="exportResidentsExcelBtn" class="export-btn excel-btn" title="Export to Excel">
+                                    <span class="material-icons">file_download</span>
+                                    <span class="btn-text">Excel</span>
+                                </button>
+                                <button id="exportResidentsPDFBtn" class="export-btn pdf-btn" title="Export to PDF">
+                                    <span class="material-icons">picture_as_pdf</span>
+                                    <span class="btn-text">PDF</span>
+                                </button>
+                                <button id="printResidentsBtn" class="export-btn print-btn" title="Print">
+                                    <span class="material-icons">print</span>
+                                    <span class="btn-text">Print</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container enhanced-residents-table">
+                            <div class="table-wrapper">
+                                <table id="viewResidentsTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="name-col">Name</th>
+                                            <th class="age-col">Age</th>
+                                            <th class="address-col">Address Zone</th>
+                                            <th class="household-col">Household No</th>
+                                            <th class="gender-col">Gender</th>
+                                            <th class="status-col">Household Status</th>
+                                            <th class="house-col">House Material</th>
+                                            <th class="terrain-col">Terrain</th>
+                                            <th class="family-col">Family Members</th>
+                                            <th class="income-col">Monthly Income</th>
+                                            <th class="aid-col">Aid History</th>
+                                            <th class="remarks-col">Remarks</th>
+                                            <th class="evacuee-col">Evacuee History</th>
+                                            <th class="status-col">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="viewResidentsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced Change Password Modal -->
+            <div id="changePasswordModal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Change Password</h2>
+                    </div>
+                    <form id="changePasswordForm">
+                        <div class="form-group">
+                            <label for="currentPassword">Current Password</label>
+                            <input type="password" id="currentPassword" required placeholder="Enter your current password">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" required placeholder="Enter your new password">
+                            <div class="password-strength">
+                                <span class="password-strength-text">Password strength</span>
+                                <div class="password-strength-bar">
+                                    <div class="password-strength-fill"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="confirmNewPassword">Confirm New Password</label>
+                            <input type="password" id="confirmNewPassword" required placeholder="Confirm your new password">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="submit-btn">
+                                <span class="material-icons">lock_reset</span>
+                                <span>Update Password</span>
+                            </button>
+                            <button type="button" onclick="closeChangePasswordModal()" class="cancel-btn">
+                                <span class="material-icons">cancel</span>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- DataTables & dependencies -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+    <script type="module" src="./firebase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script src="chart.js"></script>
+    <!-- SweetAlert2 for beautiful login popups -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="module" src="app.js"></script>
+    <script src="statistics.js"></script>
+
+    <!-- Duplicate modal removed - using enhanced modal at top of document -->
+
+    <!-- Global Functions Script (loaded immediately) -->
+    <script>
+        // Global functions that need to be available immediately for onclick handlers
+        
+        // Modal functions
+        function closeEditResidentModal() {
+            const modal = document.getElementById("editResidentModal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.style.display = "none";
+                modal.style.visibility = "hidden";
+                modal.style.opacity = "0";
+                modal.style.pointerEvents = "none";
+                
+                // Reset form
+                const form = document.getElementById("editResidentForm");
+                if (form) {
+                    form.reset();
+                }
+                
+                // Clear validation states
+                const inputs = modal.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    input.classList.remove('error', 'success');
+                    input.style.borderColor = '';
+                });
+            }
+        }
+        
+        function closeAddResidentModal() {
+            const modal = document.getElementById("addResidentModal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.style.display = "none";
+                modal.style.visibility = "hidden";
+                modal.style.opacity = "0";
+                modal.style.pointerEvents = "none";
+                
+                // Reset form
+                const form = document.getElementById("addResidentForm");
+                if (form) {
+                    form.reset();
+                }
+                
+                // Clear validation states
+                const inputs = modal.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    input.classList.remove('error', 'success');
+                    input.style.borderColor = '';
+                });
+            }
+        }
+        
+        function showAddResidentModal() {
+            const modal = document.getElementById("addResidentModal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.style.display = "flex";
+                modal.style.visibility = "visible";
+                modal.style.opacity = "1";
+                modal.style.pointerEvents = "auto";
+            }
+        }
+        
+        function showEditResidentModal() {
+            const modal = document.getElementById("editResidentModal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.style.display = "flex";
+                modal.style.visibility = "visible";
+                modal.style.opacity = "1";
+                modal.style.pointerEvents = "auto";
+            }
+        }
+        
+        function closeApproveModal() {
+            const modal = document.getElementById('approveAccountModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+                modal.style.visibility = 'hidden';
+                modal.style.opacity = '0';
+                modal.style.pointerEvents = 'none';
+                
+                // Clear form
+                const form = document.getElementById('approveAccountForm');
+                if (form) form.reset();
+            }
+        }
+        
+        function closeChangePasswordModal() {
+            const modal = document.getElementById("changePasswordModal");
+            if (modal) {
+                modal.classList.add("hidden");
+                modal.style.display = "none";
+                modal.style.visibility = "hidden";
+                modal.style.opacity = "0";
+                modal.style.pointerEvents = "none";
+                
+                // Reset form
+                const form = document.getElementById("changePasswordForm");
+                if (form) {
+                    form.reset();
+                }
+            }
+        }
+        
+        function closeViewResidentsModal() {
+            const modal = document.getElementById('viewResidentsModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Navigation function
+        function showSection(sectionId) {
+            console.log('Switching to section:', sectionId);
+            
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(sec => {
+                sec.classList.add('hidden');
+                sec.style.display = 'none';
+            });
+            
+            // Show target section
+            const target = document.getElementById(sectionId);
+            if (target) {
+                target.classList.remove('hidden');
+                target.style.display = 'block';
+            }
+            
+            // Close mobile sidebar if open
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
+            }
+        }
+        
+        // Utility functions
+        function editResident(id) {
+            console.log('Edit resident:', id);
+            // Implementation will be handled by the module
+        }
+        
+        function deleteResident(id) {
+            if (confirm('Are you sure you want to delete this resident?')) {
+                console.log('Delete resident:', id);
+                alert('Delete functionality will be implemented.');
+            }
+        }
+        
+        function viewBarangay(id, name) {
+            console.log('View barangay:', id, name);
+            // Implementation will be handled by the module
+        }
+        
+        function toggleBarangayDeliveryDetails(deliveryId) {
+            const detailsRow = document.getElementById(`barangay-details-row-${deliveryId}`);
+            if (detailsRow) {
+                detailsRow.classList.toggle('hidden');
+            }
+        }
+        
+        function printBarangayDeliveryReceipt(deliveryId, deliveryData) {
+            console.log('Print receipt for:', deliveryId, deliveryData);
+            alert('Print functionality will be implemented.');
+        }
+        
+        // Logout function - handled by app.js
+        // Removed conflicting logout function to prevent issues
+        
+        // Change password function  
+        function showChangePassword() {
+            const modal = document.getElementById("changePasswordModal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.style.display = "flex";
+                modal.style.visibility = "visible";
+                modal.style.opacity = "1";
+                modal.style.pointerEvents = "auto";
+            }
+        }
+        
+        // Message modal functions
+        function closeMessageModal() {
+            const modal = document.getElementById("messageModal");
+            if (!modal) return;
+            
+            // Add hide animation
+            modal.classList.add("hide");
+            modal.classList.remove("show");
+            
+            // Hide after animation completes
+            setTimeout(() => {
+                modal.classList.add("hidden");
+                modal.classList.remove('success', 'error', 'warning', 'info', 'hide');
+            }, 300);
+        }
+        
+        console.log('✅ Global functions loaded and available');
+        
+        // Comprehensive live reload error handling
+        
+        // Defensive refreshCSS function to prevent live reload errors
+        function refreshCSS() {
+            try {
+                const links = document.getElementsByTagName('link');
+                for (let i = links.length - 1; i >= 0; i--) {
+                    const link = links[i];
+                    if (link.rel === 'stylesheet' && link.href) {
+                        // Check if the link is actually in the document
+                        if (link.parentNode && document.contains(link)) {
+                            const newLink = document.createElement('link');
+                            newLink.rel = 'stylesheet';
+                            newLink.type = 'text/css';
+                            newLink.href = link.href + '?t=' + Date.now();
+                            
+                            // Insert the new link and remove the old one safely
+                            link.parentNode.insertBefore(newLink, link.nextSibling);
+                            
+                            // Use a timeout to ensure the new CSS is loaded
+                            setTimeout(() => {
+                                if (link.parentNode && document.contains(link)) {
+                                    link.parentNode.removeChild(link);
+                                }
+                            }, 100);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('CSS refresh error (can be safely ignored):', error.message);
+            }
+        }
+        
+        // Prevent other common live reload errors
+        window.addEventListener('error', function(event) {
+            if (event.message && event.message.includes('removeChild')) {
+                console.warn('Live reload DOM error (can be safely ignored):', event.message);
+                event.preventDefault();
+                return true;
+            }
+        });
+        
+        // Handle WebSocket connection errors gracefully
+        const originalWebSocket = window.WebSocket;
+        if (originalWebSocket) {
+            window.WebSocket = function(url, protocols) {
+                const ws = new originalWebSocket(url, protocols);
+                ws.addEventListener('error', function(event) {
+                    console.warn('WebSocket connection error (likely live reload server):', event);
+                });
+                return ws;
+            };
+            // Copy static properties
+            Object.setPrototypeOf(window.WebSocket, originalWebSocket);
+            window.WebSocket.prototype = originalWebSocket.prototype;
+        }
+    </script>
+    
+    <!-- Mobile Navigation Script -->
+    <script>
+        // Mobile sidebar functionality
+        function toggleMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+            
+            // Prevent body scrolling when sidebar is open
+            if (sidebar.classList.contains('mobile-open')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', function(event) {
+            const sidebar = document.querySelector('.sidebar');
+            const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+            
+            if (!sidebar.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
+                if (sidebar.classList.contains('mobile-open')) {
+                    closeMobileSidebar();
+                }
+            }
+        });
+
+        // Close sidebar when clicking on a navigation link
+        document.querySelectorAll('.sidebar-menu a').forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    closeMobileSidebar();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

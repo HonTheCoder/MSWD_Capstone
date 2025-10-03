@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print Test - Standardized A4 Receipt Design</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin-bottom: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        .test-section h3 { margin-top: 0; color: #2563eb; }
+        button { padding: 10px 20px; margin: 5px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+        .description { color: #666; margin-bottom: 15px; }
+    </style>
+    <script src="app.js"></script>
+</head>
+<body>
+    <h1>Print Test - Standardized A4 Receipt Design</h1>
+    <p><strong>Instructions:</strong> Click each test button to verify that all print functions now use the standardized A4 single-page receipt design matching your reference image.</p>
+
+    <div class="test-section">
+        <h3>1. Basic Receipt Template Test</h3>
+        <div class="description">Tests the core buildA4PrintHTML function with sample delivery receipt data</div>
+        <button onclick="testBasicReceipt()">Test Basic Receipt</button>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Delivery Receipt Test</h3>
+        <div class="description">Tests the barangay delivery receipt printing function</div>
+        <button onclick="testDeliveryReceipt()">Test Delivery Receipt</button>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Summary Report Test</h3>
+        <div class="description">Tests the admin summary report printing function</div>
+        <button onclick="testSummaryReport()">Test Summary Report</button>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Statistics Report Test</h3>
+        <div class="description">Tests the statistics printing function</div>
+        <button onclick="testStatisticsReport()">Test Statistics Report</button>
+    </div>
+
+    <script>
+        // Test the basic A4 receipt template
+        function testBasicReceipt() {
+            if (typeof buildA4PrintHTML !== 'function') {
+                alert('buildA4PrintHTML function not found. Make sure app.js is loaded.');
+                return;
+            }
+
+            const bodyHTML = `
+                <div class="section">
+                    <div class="grid-2">
+                        <table>
+                            <tr><th>Receipt ID:</th><td>TEST001</td></tr>
+                            <tr><th>Barangay:</th><td>Test Barangay</td></tr>
+                            <tr><th>Delivery Date:</th><td>${new Date().toLocaleDateString()}</td></tr>
+                            <tr><th>Status:</th><td>Test</td></tr>
+                        </table>
+                        <div class="section">
+                            <div class="small muted">Description:</div>
+                            <div style="margin-top:6px; padding:10px; background:#fff; border:1px solid #e5e7eb; border-radius:4px;">
+                                This is a test receipt to verify the standardized A4 single-page design.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <div class="small" style="font-weight:700;margin-bottom:6px;">Test Items</div>
+                    <div class="small">• Rice: 100 sacks</div>
+                    <div class="small">• Biscuits: 400 boxes</div>
+                    <div class="small">• Canned Goods: 400 boxes</div>
+                    <div class="small">• Shirts: 400 packs</div>
+                </div>
+                <div class="sig-row">
+                    <div class="sig"><div class="line"></div><div>MSWD Representative</div><div class="muted small">Signature over Printed Name</div></div>
+                    <div class="sig"><div class="line"></div><div>Barangay Representative</div><div class="muted small">Signature over Printed Name</div></div>
+                </div>
+            `;
+
+            const pageHTML = buildA4PrintHTML({
+                title: 'TEST RELIEF GOODS DELIVERY RECEIPT',
+                subtitle: 'Municipal Social Welfare and Development Office',
+                bodyHTML: bodyHTML,
+                footerHTML: '<div class="small">This is a test receipt. Generated on ' + new Date().toLocaleString() + '.</div>'
+            });
+
+            openPrintA4(pageHTML);
+        }
+
+        // Test delivery receipt
+        function testDeliveryReceipt() {
+            const testDeliveryData = {
+                details: 'Test delivery for verification of standardized A4 receipt design',
+                status: 'Test',
+                goods: {
+                    rice: 100,
+                    biscuits: 400,
+                    canned: 400,
+                    shirts: 400
+                }
+            };
+
+            const deliveryId = 'TEST-DELIVERY-001';
+            const barangayName = 'Test Barangay';
+            const deliveryDate = new Date();
+            const receivedDate = new Date();
+
+            const goodsList = [];
+            if (testDeliveryData.goods.rice) goodsList.push(`Rice: ${testDeliveryData.goods.rice} sacks`);
+            if (testDeliveryData.goods.biscuits) goodsList.push(`Biscuits: ${testDeliveryData.goods.biscuits} boxes`);
+            if (testDeliveryData.goods.canned) goodsList.push(`Canned Goods: ${testDeliveryData.goods.canned} boxes`);
+            if (testDeliveryData.goods.shirts) goodsList.push(`Shirts: ${testDeliveryData.goods.shirts} packs`);
+
+            const pageHTML = buildA4PrintHTML({
+                title: 'TEST RELIEF GOODS DELIVERY RECEIPT',
+                subtitle: 'Municipal Social Welfare and Development Office',
+                bodyHTML: `
+                    <div class="section">
+                        <div class="grid-2">
+                            <table>
+                                <tr><th>Receipt ID:</th><td>${deliveryId.substring(0, 8).toUpperCase()}</td></tr>
+                                <tr><th>Barangay:</th><td>${barangayName}</td></tr>
+                                <tr><th>Delivery Date:</th><td>${deliveryDate.toLocaleDateString()}</td></tr>
+                                <tr><th>Received Date:</th><td>${receivedDate.toLocaleDateString()}</td></tr>
+                                <tr><th>Status:</th><td>${testDeliveryData.status}</td></tr>
+                            </table>
+                            <div class="section">
+                                <div class="small muted">Description:</div>
+                                <div style="margin-top:6px; padding:10px; background:#fff; border:1px solid #e5e7eb; border-radius:4px; min-height:60px;">${testDeliveryData.details}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="small" style="font-weight:700;margin-bottom:6px;">Items Received</div>
+                        <div>${goodsList.map(item => `<div class="small">• ${item}</div>`).join('')}</div>
+                    </div>
+                    <div class="sig-row">
+                        <div class="sig"><div class="line"></div><div>MSWD Representative</div><div class="muted small">Signature over Printed Name</div></div>
+                        <div class="sig"><div class="line"></div><div>Barangay Representative</div><div class="muted small">Signature over Printed Name</div></div>
+                    </div>
+                `,
+                footerHTML: '<div class="small">This is a test delivery receipt. Generated on ' + new Date().toLocaleString() + '.</div>'
+            });
+            
+            openPrintA4(pageHTML);
+        }
+
+        // Test summary report
+        function testSummaryReport() {
+            const summaryHtml = `
+                <div class="section">
+                    <div class="grid-2">
+                        <table>
+                            <tr><th>Operation:</th><td>Test Operation 2025</td></tr>
+                            <tr><th>Period:</th><td>January - March 2025</td></tr>
+                            <tr><th>Total Transactions:</th><td>15</td></tr>
+                        </table>
+                        <div></div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <div class="small" style="font-weight:700;margin-bottom:6px;">Current Inventory</div>
+                    <table>
+                        <tr><th>Item</th><th>Current Stock</th></tr>
+                        <tr><td>Rice (sacks)</td><td>250</td></tr>
+                        <tr><td>Biscuits (boxes)</td><td>1000</td></tr>
+                        <tr><td>Canned Goods (boxes)</td><td>800</td></tr>
+                        <tr><td>Shirts (packs)</td><td>600</td></tr>
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <div class="grid-2">
+                        <div>
+                            <div class="small" style="font-weight:700;margin-bottom:6px;">Stock Received</div>
+                            <table>
+                                <tr><th>Item</th><th>Total Received</th></tr>
+                                <tr><td>Rice (sacks)</td><td>500</td></tr>
+                                <tr><td>Biscuits (boxes)</td><td>2000</td></tr>
+                                <tr><td>Canned Goods (boxes)</td><td>1600</td></tr>
+                                <tr><td>Shirts (packs)</td><td>1200</td></tr>
+                            </table>
+                        </div>
+                        <div>
+                            <div class="small" style="font-weight:700;margin-bottom:6px;">Deliveries Made</div>
+                            <table>
+                                <tr><th>Item</th><th>Total Delivered</th></tr>
+                                <tr><td>Rice (sacks)</td><td>250</td></tr>
+                                <tr><td>Biscuits (boxes)</td><td>1000</td></tr>
+                                <tr><td>Canned Goods (boxes)</td><td>800</td></tr>
+                                <tr><td>Shirts (packs)</td><td>600</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const pageHTML = buildA4PrintHTML({
+                title: 'TEST RELIEF OPERATION SUMMARY REPORT',
+                subtitle: 'Municipal Social Welfare and Development Office',
+                bodyHTML: summaryHtml,
+                footerHTML: '<div class="small">This is a test summary report. Generated on ' + new Date().toLocaleString() + '.</div>'
+            });
+
+            openPrintA4(pageHTML);
+        }
+
+        // Test statistics report
+        function testStatisticsReport() {
+            // Create a simple test chart (canvas element)
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 300;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw a simple test chart
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect(0, 0, 400, 300);
+            ctx.fillStyle = '#2563eb';
+            ctx.fillRect(50, 50, 100, 150);
+            ctx.fillRect(170, 100, 100, 100);
+            ctx.fillRect(290, 75, 100, 125);
+            ctx.fillStyle = '#111827';
+            ctx.font = '16px Arial';
+            ctx.fillText('Test Chart', 160, 30);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            const tableHtml = `
+                <table>
+                    <thead><tr><th>Name</th><th>Value</th></tr></thead>
+                    <tbody>
+                        <tr><td>Barangay A</td><td>125</td></tr>
+                        <tr><td>Barangay B</td><td>89</td></tr>
+                        <tr><td>Barangay C</td><td>156</td></tr>
+                        <tr><td>Barangay D</td><td>98</td></tr>
+                    </tbody>
+                </table>
+            `;
+
+            const bodyHTML = `
+                <div class="section">
+                    <div style="text-align:center; margin-bottom:16px;">
+                        <img src="${dataUrl}" style="max-width:100%; height:auto; border:1px solid #e5e7eb; border-radius:4px;" alt="Test Chart"/>
+                    </div>
+                </div>
+                <div class="section">
+                    <div class="small" style="font-weight:700;margin-bottom:6px;">Test Statistics Data</div>
+                    ${tableHtml}
+                </div>
+            `;
+
+            const pageHTML = buildA4PrintHTML({
+                title: 'TEST STATISTICS REPORT',
+                subtitle: 'Municipal Social Welfare and Development Office',
+                bodyHTML: bodyHTML,
+                footerHTML: '<div class="small">This is a test statistics report. Generated on ' + new Date().toLocaleString() + '.</div>'
+            });
+
+            openPrintA4(pageHTML);
+        }
+    </script>
+</body>
+</html>
